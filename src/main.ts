@@ -14,8 +14,8 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge } from "rxjs";
-import { map, filter, scan } from "rxjs/operators";
+import { from, fromEvent, interval, merge, Observable, of, timer } from "rxjs";
+import { map, filter, scan, mergeWith, startWith, mergeMap, take, delay, last, tap, first, finalize } from "rxjs/operators";
 import * as Tone from "tone";
 import { SampleLibrary } from "./tonejs-instruments";
 
@@ -24,21 +24,67 @@ import { SampleLibrary } from "./tonejs-instruments";
 const Viewport = {
     CANVAS_WIDTH: 200,
     CANVAS_HEIGHT: 400,
+	UNRENDER_THRESHOLD: 385,
 } as const;
 
+const Zones = {
+	DETECTION_ZONE: 300,
+	GOOD_ZONE: 320,
+	PERFECT_ZONE: 340,
+	END_PERFECT_ZONE: 360,
+	END_GOOD_ZONE: 375,
+	END_DETECTION_ZONE: 375,
+}
+
 const Constants = {
-    TICK_RATE_MS: 500,
-    SONG_NAME: "RockinRobin",
+    TICK_RATE_MS: 10,
+
+	// SONG_NAME: "nightsOfNights",
+	// SONG_NAME: "nightsOfNights_bg",
+	// SONG_NAME: "nightsOfNights_isuck",
+	// SONG_NAME: "stickyBug",
+	// SONG_NAME: 'megalovania',
+	// SONG_NAME: 'megalovania-bg',
+	// SONG_NAME: 'monstadt-night',
+	// SONG_NAME: 'IlVentoDoro',
+	// SONG_NAME: 'IlVentoDoro2',
+	// SONG_NAME: 'summertime',
+	// SONG_NAME: 'renaiCirculation',
+	// SONG_NAME: 'stapleStable',
+	// SONG_NAME: 'turningLove',
+	// SONG_NAME: 'Say!Fanfare',
+	// SONG_NAME: "RockinRobin",
+    // SONG_NAME: "ThroughTheFireAndTheFlames",
+	// SONG_NAME: "pianoMan",
+	// SONG_NAME: "guitarMan",
+	// SONG_NAME: 'bonAppatit',
+	// SONG_NAME: "constallation_vocals",
+	// SONG_NAME: "cantina",
+	// SONG_NAME: 'dot',
+	// SONG_NAME: 'dotSmall',
+	SONG_NAME: 'drag',
+	// SONG_NAME: "sus",
+	// SONG_NAME: "sageJihen",
+	// SONG_NAME: "f--kingbull----",
+	// SONG_NAME: "IWannaBeAGirl",
+	// SONG_NAME: "loveTrial",
+
+	BASE_SCORE: 100
 } as const;
 
 const Note = {
     RADIUS: 0.07 * Viewport.CANVAS_WIDTH,
     TAIL_WIDTH: 10,
+	SPEED: 3.5 // xunit / tickz
 };
+
+const Bar = {
+	width: 0.04 * Viewport.CANVAS_WIDTH
+}
 
 /** User input */
 
-type Key = "KeyH" | "KeyJ" | "KeyK" | "KeyL";
+type Key = "KeyS" | "KeyD" | "KeyJ" | "KeyK";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -46,13 +92,148 @@ type Event = "keydown" | "keyup" | "keypress";
 
 /** State processing */
 
+type Music = Readonly<{
+	played: Boolean
+	instrument: string,
+	velocity: number,
+	pitch: number,
+	start: number,
+	end: number,
+	duration: number
+}>
+
+class AMusic {
+	readonly duration: number;
+
+	constructor (
+		public readonly played: Boolean,
+		public readonly instrument: string,
+		public readonly velocity: number,
+		public readonly pitch: number,
+		public readonly start: number,
+		public readonly end: number
+	) { 
+		this.duration = this.end - this.start
+	}
+
+	// WARNING: UNPURE, ONLY USE THIS IN SUBSCRIBE
+	public readonly playSound = () => {
+		const volume = this.velocity / 127
+
+		samples[this.instrument].triggerAttackRelease(
+			Tone.Frequency(this.pitch, 'midi').toNote(),
+			this.duration,
+			undefined,
+			volume
+		)
+	}
+
+	public readonly startStream = () => {
+		const volume = this.velocity / 127
+
+		samples[this.instrument].triggerAttack(
+			Tone.Frequency(this.pitch, 'midi').toNote(),
+			undefined,
+			volume
+		)
+	}
+
+	public readonly randomPitch = () => {
+		return new AMusic(
+			this.played,
+			this.instrument,
+			127, // people need to know they fuck up
+			Math.floor(25 + (Math.random() * 65)),
+			0,
+			Math.random() / 2,
+		)
+	}
+
+	public readonly stopSound = () => {
+		console.log("%s | %f | stop", this.instrument, this.pitch)
+		samples[this.instrument].triggerRelease(
+			Tone.Frequency(this.pitch, 'midi').toNote(),
+		)
+	}
+}
+
+type Note = Readonly<{
+	y: number,
+	associatedMusic: AMusic
+	isStream: boolean
+	endStream: boolean
+}>
+
+class ANote {
+	constructor (
+		public readonly y: number,
+		public readonly associatedMusic: AMusic,
+
+		public readonly isStream: boolean = false,
+		public readonly endStream: boolean = false
+	) {  }
+}
+
+type GameFrame = Readonly<{
+	greenLine: ReadonlyArray<ANote>
+	redLine: ReadonlyArray<ANote>
+	blueLine: ReadonlyArray<ANote>
+	yellowLine: ReadonlyArray<ANote>
+}>
+
+type lineNames = 'greenLine' | 'redLine' | 'blueLine' | 'yellowLine'
+
+class AGameFrame {
+	constructor (
+		public readonly greenLine: ReadonlyArray<ANote>,
+		public readonly redLine: ReadonlyArray<ANote>,
+		public readonly blueLine: ReadonlyArray<ANote>,
+		public readonly yellowLine: ReadonlyArray<ANote>,
+	) { }
+}
+
+type GameData = Readonly<{
+	multiplier: number,
+	score: number,
+	combo: number,
+
+	totalNodes: number,
+	notesPlayed: number,
+}>
+
+class AGameData {
+	constructor (
+		public readonly multiplier: number,
+		public readonly score: number,
+		public readonly combo: number,
+		public readonly totalNodes: number,
+		public readonly notesPlayed: number,
+	) { }
+}
+
 type State = Readonly<{
-    gameEnd: boolean;
+    gameEnd: boolean,
+
+	keyPressed: ReadonlyArray<Key>,
+	gameFrame: GameFrame,
+
+	data: GameData,
+
+	music: AMusic | null
+	startStream: AMusic | null
+	stopMusic: AMusic | null
 }>;
 
-const initialState: State = {
+const initialState: (totalNodes: number) => State = (totalNodes) => ({
     gameEnd: false,
-} as const;
+	keyPressed: [],
+	gameFrame: new AGameFrame([], [], [], []),
+	data: new AGameData(1, 0, 0, totalNodes, 0),
+
+	music: null,
+	startStream: null,
+	stopMusic: null,
+})
 
 /**
  * Updates the state by proceeding with one time step.
@@ -125,13 +306,308 @@ export function main(csv_contents: string) {
     const highScoreText = document.querySelector(
         "#highScoreText",
     ) as HTMLElement;
+	const comboText = document.querySelector('#comboText') as HTMLElement;
 
     /** User input */
 
-    const key$ = fromEvent<KeyboardEvent>(document, "keypress");
+    const keyPress$ = fromEvent<KeyboardEvent>(document, "keydown");
+	const keyRelease$ = fromEvent<KeyboardEvent>(document, "keyup")
 
-    const fromKey = (keyCode: Key) =>
-        key$.pipe(filter(({ code }) => code === keyCode));
+    const fromKeyPress = (keyCode: Key) =>
+        keyPress$.pipe(
+			filter(({ code, repeat }) => code === keyCode && !repeat)
+		);
+
+	const fromKeyRelease = (keyCode: Key) => 
+        keyRelease$.pipe(
+			filter(({ code, repeat }) => code === keyCode && !repeat)
+		);
+
+	function removeElement<T>(array: ReadonlyArray<T>, element: T) : ReadonlyArray<T> {
+		const indexOfElement = array.indexOf(element)
+		if (indexOfElement < 0)
+			return array
+		return [...array.slice(0, indexOfElement), ...array.slice(indexOfElement + 1, array.length)]
+	} 
+
+	function insertElement<T>(array: ReadonlyArray<T>, element: T) : ReadonlyArray<T> {
+		const indexOfElement = array.indexOf(element)
+		if (indexOfElement < 0)
+			return array.concat(element)
+		// already exist, why does it already exist?
+		return array
+	} 
+
+	const checkReleaseDetection = (key: lineNames) => (prev: State) => {
+		const lineAssociated = prev.gameFrame[key]
+		const firstElement = lineAssociated.at(0)
+		if (!firstElement)
+			return {
+				...prev,
+				music: null
+			}
+
+		if (firstElement.endStream) {
+			// stream is released
+
+			const elementY = firstElement.y
+			// remove node
+			const removedLine = {[key]: lineAssociated.slice(1)}
+
+			const newCombo = prev.data.combo + 1
+			const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+			
+
+			if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						...removedLine
+					},
+					data: {
+						...prev.data,
+						multiplier: newMultiplier,
+						score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
+						combo: newCombo
+					},
+					stopMusic: firstElement.associatedMusic, 
+				}
+			}
+			else {
+				// too early!
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						...removedLine
+					},
+					data: {
+						...prev.data,
+						multiplier: 1,
+						combo: 0
+					},
+					stopMusic: firstElement.associatedMusic,
+				}
+			}
+		}
+		return {
+			...prev,
+			music: null
+		}
+	}
+
+	const checkHitDetection = (key: lineNames) => (prev: State) => {
+		const lineAssociated = prev.gameFrame[key]
+		const firstElement = lineAssociated.at(0)
+		if (!firstElement)
+			return {
+				...prev,
+				music: null
+			}
+
+		const elementY = firstElement.y
+
+		const isStream = firstElement.isStream
+		const endStream = firstElement.endStream
+
+		if (elementY >= Zones.DETECTION_ZONE && elementY <= Zones.END_DETECTION_ZONE) {
+			// hit!
+
+			// remove node
+			const removedLine = {[key]: lineAssociated.slice(1)}
+
+			if (firstElement.isStream) {
+				// a stream
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						...removedLine
+					},
+					music: firstElement.associatedMusic,
+				}
+			}
+
+			const newCombo = prev.data.combo + 1
+			const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+
+			if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
+				const newScores = {
+					multiplier: newMultiplier,
+					score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
+					combo: newCombo,
+				}
+
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						...removedLine
+					},
+					data: {
+						...prev.data,
+						...((isStream || endStream) ? {} : newScores),
+						notesPlayed: prev.data.notesPlayed + (endStream ? 0 : 1)
+					},
+					...((endStream) ? {} : (isStream) ? 
+					{startStream: firstElement.associatedMusic} :
+					{music: firstElement.associatedMusic}),
+				}
+			}
+			else {
+				// too early!
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						...removedLine
+					},
+					data: {
+						...prev.data,
+						multiplier: 1,
+						combo: 0,
+						notesPlayed: prev.data.notesPlayed + 1
+					},
+					music: firstElement.associatedMusic.randomPitch(),
+				}
+			}
+		}
+		return {
+			...prev,
+			music: null
+		}
+	}
+
+	const controlObservable = (keyCode: Key, onkeyPress: (prev: State) => State, onkeyRelease: (prev: State) => State) => {
+		const keyRelease$ = fromKeyRelease(keyCode).pipe(
+			map(() => (state: State) => ({
+				...onkeyRelease(state),
+				keyPressed: removeElement(state.keyPressed, keyCode),
+			})),
+		)
+
+		const keyPress$ = fromKeyPress(keyCode).pipe(
+			map(() => (state: State) => ({
+				...onkeyPress(state),
+				keyPressed: insertElement(state.keyPressed, keyCode),
+			})),
+		)
+
+		return merge(keyPress$, keyRelease$)
+	}
+
+	const control$ = merge(
+			controlObservable('KeyS', checkHitDetection('greenLine'), checkReleaseDetection('greenLine')),
+			controlObservable('KeyD', checkHitDetection('redLine'), checkReleaseDetection('redLine')),
+			controlObservable('KeyJ', checkHitDetection('blueLine'), checkReleaseDetection('blueLine')),
+			controlObservable('KeyK', checkHitDetection('yellowLine'), checkReleaseDetection('yellowLine')),
+		)
+
+	/** Reading the csv file */
+	const processCSV = (csv_contents: string) => {
+		return csv_contents
+				.split('\n')
+				.splice(1) // remove csv header
+				.map(line => line.split(','))
+				.filter(data => data.length == 6) // ensure no invalid lines
+	}
+
+	function getLastElement<T>(array: ReadonlyArray<T>): T | undefined {
+		return array.at(-1)
+	}
+
+	const appendPlayableNode = (music: AMusic, state: State) => {
+		const newNode = new ANote(0, music, music.duration >= 1)
+		const { greenLine, redLine, blueLine, yellowLine } = state.gameFrame
+		const lines = Array(greenLine, redLine, blueLine, yellowLine)
+		const start = music.start
+
+		const availableLines = lines
+			.filter(lastNode => getLastElement(lastNode)
+			?.associatedMusic.start !== start)
+		const availableLine = availableLines.at(Math.floor(Math.random() * availableLines.length))
+
+		if (availableLine === undefined) {
+			// all 4 lines are full, just play the sound
+			return {
+				...state,
+				data: {
+					...state.data,
+					notesPlayed: state.data.notesPlayed + 1
+				},
+				music: music
+			}
+		}
+
+		// set new line
+		const yEndPosition = -(Note.SPEED * music.duration * 1000) / Constants.TICK_RATE_MS
+		const endNode = new ANote(yEndPosition, music, false, true)
+		const newLine = newNode.isStream ? 
+							insertElement(insertElement(availableLine, newNode), endNode) :
+							insertElement(availableLine, newNode)
+
+		// determine which type
+		const lineNames = ['greenLine', 'redLine', 'blueLine', 'yellowLine']
+		const lineIndex = lines.indexOf(availableLine)
+		const lineName = lineNames.at(lineIndex)
+
+		if (lineName === undefined)
+			return state
+
+		const newLineObj = {
+			[lineName]: newLine
+		}
+
+		return {
+			...state,
+			gameFrame: {
+				...state.gameFrame,
+				...newLineObj
+			}
+		}
+	}
+
+	const createNoteStreamObservable = () => {
+		const maxTravelTime = Zones.PERFECT_ZONE / Note.SPEED * Constants.TICK_RATE_MS
+		const processedCSV = processCSV(csv_contents)
+		const firstNoteStart = Number(processedCSV.at(0)?.at(4))
+		const CSVlength = processedCSV.length
+		const delayBegin = Math.max(0, maxTravelTime - firstNoteStart)
+
+		return { 
+			notesLength: CSVlength,
+			noteStream$: from(processedCSV)
+			.pipe(
+				map(data => new AMusic(
+					String(data[0]).toLowerCase() === 'true',
+					data[1],
+					Number(data[2]),
+					Number(data[3]),
+					Number(data[4]),
+					Number(data[5])
+				)),
+				mergeMap(value => of(value).pipe(
+					(value.played ? 
+						delay(((value.start * 1000) - maxTravelTime) + delayBegin) : 
+						delay((value.start * 1000) + delayBegin)),
+					map(value => (prev: State) =>
+						value.played ? appendPlayableNode(value, prev) : {
+							...prev,
+							data: {
+								...prev.data,
+								notesPlayed: prev.data.notesPlayed + 1
+							},
+							music: value
+						}
+					),
+				)),
+			)
+		}
+	}
+
+	const { notesLength, noteStream$ } = createNoteStreamObservable()
+	console.log(notesLength)
 
     /** Determines the rate of time steps */
     const tick$ = interval(Constants.TICK_RATE_MS);
@@ -143,48 +619,162 @@ export function main(csv_contents: string) {
      *
      * @param s Current state
      */
-    const render = (s: State) => {
+
+	const darkRedHightlight = document.getElementById('red-highlight'),
+	darkYellowHighlight = document.getElementById('yellow-highlight'),
+	darkBlueHighlight = document.getElementById('blue-highlight'),
+	darkGreenHighlight = document.getElementById('green-highlight'),
+	ballSvg = document.getElementById('innerSvg') as SVGElement & HTMLElement
+
+	const renderControls = (s: State) => {
         // Add blocks to the main grid canvas
-        const greenCircle = createSvgElement(svg.namespaceURI, "circle", {
-            r: `${Note.RADIUS}`,
-            cx: "20%",
-            cy: "200",
-            style: "fill: green",
-            class: "shadow",
-        });
+		s.keyPressed.includes('KeyS') ? 
+			darkGreenHighlight?.setAttribute('class', 'selected-highlight') :
+			darkGreenHighlight?.setAttribute('class', 'dark-green-highlight')
 
-        const redCircle = createSvgElement(svg.namespaceURI, "circle", {
-            r: `${Note.RADIUS}`,
-            cx: "40%",
-            cy: "50",
-            style: "fill: red",
-            class: "shadow",
-        });
+		s.keyPressed.includes('KeyD') ? 
+			darkRedHightlight?.setAttribute('class', 'selected-highlight') :
+			darkRedHightlight?.setAttribute('class', 'dark-red-highlight')
 
-        const blueCircle = createSvgElement(svg.namespaceURI, "circle", {
-            r: `${Note.RADIUS}`,
-            cx: "60%",
-            cy: "50",
-            style: "fill: blue",
-            class: "shadow",
-        });
+		s.keyPressed.includes('KeyJ') ? 
+			darkBlueHighlight?.setAttribute('class', 'selected-highlight') :
+			darkBlueHighlight?.setAttribute('class', 'dark-blue-highlight')
 
-        const yellowCircle = createSvgElement(svg.namespaceURI, "circle", {
-            r: `${Note.RADIUS}`,
-            cx: "80%",
-            cy: "50",
-            style: "fill: yellow",
-            class: "shadow",
-        });
+		s.keyPressed.includes('KeyK') ? 
+			darkYellowHighlight?.setAttribute('class', 'selected-highlight') :
+			darkYellowHighlight?.setAttribute('class', 'dark-yellow-highlight')
+	}
 
-        svg.appendChild(greenCircle);
-        svg.appendChild(redCircle);
-        svg.appendChild(blueCircle);
-        svg.appendChild(yellowCircle);
-    };
+	const renderGameFrame = (s: State) => {
+		ballSvg.innerHTML = ''
+		// ballSvg.childNodes.forEach(childNodes => childNodes.remove())
+
+		const { greenLine, redLine, blueLine, yellowLine } = s.gameFrame
+		const xLocation = ['20%', '40%', '60%', '80%']
+		const color = ['green', 'red', 'blue', 'yellow']
+		const lines = [ greenLine, redLine, blueLine, yellowLine ]
+
+		const drawOnSVG = (color: string, cx: string) => (y: number) => {
+			ballSvg.appendChild(createSvgElement(ballSvg.namespaceURI, "circle", {
+				r: `${Note.RADIUS}`,
+				cx: `${cx}`,
+				cy: `${y}`,
+				style: `fill: ${color}`,
+				class: "shadow",
+			}));
+		}
+
+		const drawBarSVG =  (color: string, cx: string) => (startY: number, endY: number) => {
+			ballSvg.appendChild(createSvgElement(ballSvg.namespaceURI, "line", {
+				x1: `${cx}`,
+				x2: `${cx}`,
+				y1: `${startY}`,
+				y2: `${endY}`,
+				stroke: `${color}`,
+				'stroke-width': `${Bar.width}`
+			}))
+		} 
+
+		lines.forEach(
+			(nodes, lineIndex) => nodes.forEach(
+				(node, nodeIndex, nodesArr) => {
+					drawOnSVG(color[lineIndex], xLocation[lineIndex])(node.y)
+					if (node.isStream) {
+						const endNode = nodesArr.at(nodeIndex + 1)
+						if (!endNode)
+							return
+						drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, endNode.y)
+					}
+				}
+			)
+		)
+	}
+
+	const renderData = (s: State) => {
+		scoreText.innerText = String(s.data.score)
+		comboText.innerText = String(s.data.combo)
+		multiplier.innerText = String(s.data.multiplier)
+	}
+
+	const musicPlayer = (s: State) => {
+		if (s.music)
+			s.music.playSound()
+		if (s.startStream)
+			s.startStream.startStream()
+		if (s.stopMusic)
+			s.stopMusic.stopSound()
+	}
+
+	const render = (s: State) => {
+		renderControls(s)
+		renderGameFrame(s)
+		renderData(s)
+		musicPlayer(s)
+	};
+
+	const tickLine = (line: ReadonlyArray<Note>) => 
+		(line.length > 0 ? 
+			line.at(0)!.y > Viewport.UNRENDER_THRESHOLD ? 
+			line.slice(1) : 
+			line
+		: line).map(note => ({...note, y: note.y + Note.SPEED}))
+
+		// line
+		// 	.filter(note => note.y <= Viewport.UNRENDER_THRESHOLD)
+		// 	.map(note => ({...note, y: note.y + Note.SPEED}))
+
+	const missedLine = (prev: GameFrame) => 
+		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
+		.reduce(
+			(missed, line) => 
+				missed + (line.at(0) ? 
+				Number(line.at(0)!.y > Zones.END_DETECTION_ZONE) : 
+				0),
+		0)
+
+	const unrenderedNodes = (prev: GameFrame) => 
+		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
+		.reduce(
+			(missed, line) => 
+				missed + (line.at(0) ? 
+				Number(line.at(0)!.y > Viewport.UNRENDER_THRESHOLD) : 
+				0),
+		0)
+
+	const tickGameFrame = (prev: GameFrame) => new AGameFrame(
+			tickLine(prev.greenLine),
+			tickLine(prev.redLine),
+			tickLine(prev.blueLine),
+			tickLine(prev.yellowLine)
+		)
+
+	const tick = (prev: State) => {
+		const unrenderedCount = unrenderedNodes(prev.gameFrame)
+		const missedCount = missedLine(prev.gameFrame)
+		return {
+			...prev,
+			gameEnd: prev.data.notesPlayed >= prev.data.totalNodes,
+			gameFrame: tickGameFrame(prev.gameFrame),
+
+			data: {
+				...prev.data,
+				multiplier: missedCount ? 1 : prev.data.multiplier,
+				combo: missedCount ? 0 : prev.data.combo,
+				notesPlayed: prev.data.notesPlayed + unrenderedCount
+			},
+
+			music: null,
+			startStream: null, 
+			stopMusic: null
+		}
+	}
 
     const source$ = tick$
-        .pipe(scan((s: State) => ({ gameEnd: false }), initialState))
+        .pipe(
+			map(() => tick),
+			mergeWith(control$, noteStream$),
+			scan((prevState: State, modifier: (prev: State) => State) => modifier(prevState), initialState(notesLength)),
+		)
         .subscribe((s: State) => {
             render(s);
 
@@ -196,27 +786,41 @@ export function main(csv_contents: string) {
         });
 }
 
+// Load in the instruments and then start your game!
+export const samples = SampleLibrary.load({
+	instruments: [
+		"bass-electric",
+		"bassoon",
+		"cello",
+		"clarinet",
+		"contrabass",
+		"flute",
+		"french-horn",
+		"guitar-acoustic",
+		"guitar-electric",
+		"guitar-nylon",
+		"harmonium",
+		"harp",
+		"organ",
+		"piano",
+		"saxophone",
+		"trombone",
+		"trumpet",
+		"tuba",
+		"violin",
+		"xylophone"
+	], // SampleLibrary.list,
+	baseUrl: "samples/",
+});
+
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 // You should not need to change this, beware if you are.
 if (typeof window !== "undefined") {
-    // Load in the instruments and then start your game!
-    const samples = SampleLibrary.load({
-        instruments: [
-            "bass-electric",
-            "violin",
-            "piano",
-            "trumpet",
-            "saxophone",
-            "trombone",
-            "flute",
-        ], // SampleLibrary.list,
-        baseUrl: "samples/",
-    });
-
     const start_game = (contents: string) => {
         document.body.addEventListener(
             "mousedown",
             function () {
+				console.log('Starting the Game')
                 main(contents);
             },
             { once: true },
@@ -230,12 +834,12 @@ if (typeof window !== "undefined") {
         for (const instrument in samples) {
             samples[instrument].toDestination();
             samples[instrument].release = 0.5;
-            fetch(`${baseUrl}/assets/${Constants.SONG_NAME}.csv`)
-                .then((response) => response.text())
-                .then((text) => start_game(text))
-                .catch((error) =>
-                    console.error("Error fetching the CSV file:", error),
-                );
         }
+		fetch(`${baseUrl}/assets/${Constants.SONG_NAME}.csv`)
+			.then((response) => response.text())
+			.then((text) => start_game(text))
+			.catch((error) =>
+				console.error("Error fetching the CSV file:", error),
+			);
     });
 }

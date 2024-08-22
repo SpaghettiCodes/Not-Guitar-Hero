@@ -100,3 +100,28 @@ svg rect {
     font-weight: bolder;
     text-align: center;
 }
+
+.dark-green-highlight {
+	stop-color: #005500; 
+	stop-opacity: 1
+}
+
+.dark-red-highlight {
+	stop-color: #550000; 
+	stop-opacity: 1"
+}
+
+.dark-blue-highlight {
+	stop-color: #000055; 
+	stop-opacity: 1
+}
+
+.dark-yellow-highlight {
+	stop-color: #555500; 
+	stop-opacity: 1
+}
+
+.selected-highlight {
+	stop-color: #ffffff; 
+	stop-opacity: 1
+}
