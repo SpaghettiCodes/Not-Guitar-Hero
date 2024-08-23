@@ -62,14 +62,16 @@ const Constants = {
 	// SONG_NAME: "cantina",
 	// SONG_NAME: 'dot',
 	// SONG_NAME: 'dotSmall',
-	SONG_NAME: 'drag',
+	// SONG_NAME: 'drag',
+	// SONG_NAME: 'drag2',
+	SONG_NAME: 'drag3',
 	// SONG_NAME: "sus",
 	// SONG_NAME: "sageJihen",
 	// SONG_NAME: "f--kingbull----",
 	// SONG_NAME: "IWannaBeAGirl",
 	// SONG_NAME: "loveTrial",
 
-	BASE_SCORE: 100
+	BASE_SCORE: 10
 } as const;
 
 const Note = {
@@ -79,7 +81,7 @@ const Note = {
 };
 
 const Bar = {
-	width: 0.04 * Viewport.CANVAS_WIDTH
+	width: Note.RADIUS * 1.5
 }
 
 /** User input */
@@ -174,21 +176,63 @@ class ANote {
 	) {  }
 }
 
+class ALine {
+	constructor (
+		public readonly line: ReadonlyArray<ANote> = [],
+		public readonly hold: boolean = false,
+		public readonly clicked: number = 0
+	) { }
+
+	public readonly replaceLine = (line: ReadonlyArray<ANote>) => {
+		return new ALine(line, this.hold, this.clicked)
+	}
+
+	public readonly lineDown = (clicked: number = 0) => {
+		return new ALine(this.line, true, clicked)
+	}
+
+	public readonly lineUp = (clicked: number = 0) => {
+		return new ALine(this.line, false, clicked)
+	}
+
+	public readonly front = () => {
+		return this.line.at(0)
+	}
+
+	public readonly back = () => {
+		return this.line.at(-1)
+	}
+
+	public readonly removeFront = () => {
+		return this.replaceLine(this.line.slice(1))
+	}
+
+	public readonly tick = () => {
+		return this.replaceLine(
+			(this.line.length > 0 ? 
+				this.line.at(0)!.y > Viewport.UNRENDER_THRESHOLD ? 
+				this.line.slice(1) : 
+				this.line
+			: this.line).map(note => ({...note, y: note.y + Note.SPEED}))
+		)
+	}
+}
+
 type GameFrame = Readonly<{
-	greenLine: ReadonlyArray<ANote>
-	redLine: ReadonlyArray<ANote>
-	blueLine: ReadonlyArray<ANote>
-	yellowLine: ReadonlyArray<ANote>
+	greenLine: ALine
+	redLine: ALine
+	blueLine: ALine
+	yellowLine: ALine
 }>
 
 type lineNames = 'greenLine' | 'redLine' | 'blueLine' | 'yellowLine'
 
 class AGameFrame {
 	constructor (
-		public readonly greenLine: ReadonlyArray<ANote>,
-		public readonly redLine: ReadonlyArray<ANote>,
-		public readonly blueLine: ReadonlyArray<ANote>,
-		public readonly yellowLine: ReadonlyArray<ANote>,
+		public readonly greenLine: ALine = new ALine(),
+		public readonly redLine: ALine = new ALine(),
+		public readonly blueLine: ALine = new ALine(),
+		public readonly yellowLine: ALine = new ALine(),
 	) { }
 }
 
@@ -227,7 +271,7 @@ type State = Readonly<{
 const initialState: (totalNodes: number) => State = (totalNodes) => ({
     gameEnd: false,
 	keyPressed: [],
-	gameFrame: new AGameFrame([], [], [], []),
+	gameFrame: new AGameFrame(),
 	data: new AGameData(1, 0, 0, totalNodes, 0),
 
 	music: null,
@@ -339,143 +383,172 @@ export function main(csv_contents: string) {
 	} 
 
 	const checkReleaseDetection = (key: lineNames) => (prev: State) => {
-		const lineAssociated = prev.gameFrame[key]
-		const firstElement = lineAssociated.at(0)
+		const lineDownPosition = prev.gameFrame[key].clicked
+		const lineAssociated = prev.gameFrame[key].lineUp(-1)
+		const firstElement = lineAssociated.front()
+
 		if (!firstElement)
 			return {
 				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...({ [key]: lineAssociated })
+				},
 				music: null
 			}
 
-		if (firstElement.endStream) {
-			// stream is released
-
-			const elementY = firstElement.y
-			// remove node
-			const removedLine = {[key]: lineAssociated.slice(1)}
-
-			const newCombo = prev.data.combo + 1
-			const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
-			
-
-			if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						...removedLine
-					},
-					data: {
-						...prev.data,
-						multiplier: newMultiplier,
-						score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
-						combo: newCombo
-					},
-					stopMusic: firstElement.associatedMusic, 
-				}
+		// lineDownPosition is -1 ==> didnt record any nodes on click ==> ignore
+		if (!firstElement.endStream || lineDownPosition === -1)
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...({ [key]: lineAssociated })
+				},
+				music: null
 			}
-			else {
-				// too early!
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						...removedLine
-					},
-					data: {
-						...prev.data,
-						multiplier: 1,
-						combo: 0
-					},
-					stopMusic: firstElement.associatedMusic,
-				}
+
+		// stream is released
+
+		const elementY = firstElement.y
+		// remove node
+		const removedLine = {
+			[key]: lineAssociated.removeFront().lineUp(elementY)
+		}
+
+		const newCombo = prev.data.combo + 1
+		const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+
+		if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...removedLine
+				},
+				data: {
+					...prev.data,
+					multiplier: newMultiplier,
+					score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
+					combo: newCombo,
+					notesPlayed: prev.data.notesPlayed + 1
+				},
+				stopMusic: firstElement.associatedMusic, 
 			}
 		}
-		return {
-			...prev,
-			music: null
+		else {
+			// too early!
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...removedLine
+				},
+				data: {
+					...prev.data,
+					multiplier: 1,
+					combo: 0,
+					notesPlayed: prev.data.notesPlayed + 1
+				},
+				stopMusic: firstElement.associatedMusic,
+			}
 		}
 	}
 
 	const checkHitDetection = (key: lineNames) => (prev: State) => {
-		const lineAssociated = prev.gameFrame[key]
-		const firstElement = lineAssociated.at(0)
+		const lineAssociated = prev.gameFrame[key].lineDown(-1)
+		const firstElement = lineAssociated.front()
+
 		if (!firstElement)
 			return {
 				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...({ [key]: lineAssociated })
+				},
 				music: null
 			}
 
 		const elementY = firstElement.y
-
 		const isStream = firstElement.isStream
 		const endStream = firstElement.endStream
 
-		if (elementY >= Zones.DETECTION_ZONE && elementY <= Zones.END_DETECTION_ZONE) {
-			// hit!
+		// endStream isnt supposed to be clicked, hm
 
-			// remove node
-			const removedLine = {[key]: lineAssociated.slice(1)}
+		// if (endStream)
+		// 	return {
+		// 		...prev,
+		// 		gameFrame: {
+		// 			...prev.gameFrame,
+		// 			...({ [key]: lineAssociated.removeFront().lineDown(elementY) })
+		// 		},
+		// 		data: {
+		// 			...prev.data,
+		// 			notesPlayed: prev.data.notesPlayed + 1
+		// 		},
+		// 		music: null
+		// 	}
 
-			if (firstElement.isStream) {
-				// a stream
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						...removedLine
-					},
-					music: firstElement.associatedMusic,
-				}
+		if (!(elementY >= Zones.DETECTION_ZONE && elementY <= Zones.END_DETECTION_ZONE) || endStream)
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...({ [key]: lineAssociated })
+				},
+				music: null
 			}
 
-			const newCombo = prev.data.combo + 1
-			const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+		// anything below here is 
+		// 1. within Detection Zone
+		// 2. NOT a endStream Node
 
-			if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
-				const newScores = {
-					multiplier: newMultiplier,
-					score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
-					combo: newCombo,
-				}
+		// remove node
+		const removedLine = {
+			[key]: lineAssociated.removeFront().lineDown(elementY)
+		}
 
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						...removedLine
-					},
-					data: {
-						...prev.data,
-						...((isStream || endStream) ? {} : newScores),
-						notesPlayed: prev.data.notesPlayed + (endStream ? 0 : 1)
-					},
-					...((endStream) ? {} : (isStream) ? 
-					{startStream: firstElement.associatedMusic} :
-					{music: firstElement.associatedMusic}),
-				}
+		const newCombo = prev.data.combo + 1
+		const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+
+		if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
+			const newScores = {
+				multiplier: newMultiplier,
+				score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
+				combo: newCombo,
 			}
-			else {
-				// too early!
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						...removedLine
-					},
-					data: {
-						...prev.data,
-						multiplier: 1,
-						combo: 0,
-						notesPlayed: prev.data.notesPlayed + 1
-					},
-					music: firstElement.associatedMusic.randomPitch(),
-				}
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...removedLine
+				},
+				data: {
+					...prev.data,
+					...((isStream || endStream) ? {} : newScores),
+					notesPlayed: prev.data.notesPlayed + Number((isStream) ? 0 : 1)
+				},
+				...((isStream) ? 
+				{startStream: firstElement.associatedMusic} :
+				{music: firstElement.associatedMusic}),
 			}
 		}
-		return {
-			...prev,
-			music: null
+		else {
+			// too early!
+			return {
+				...prev,
+				gameFrame: {
+					...prev.gameFrame,
+					...removedLine
+				},
+				data: {
+					...prev.data,
+					multiplier: 1,
+					combo: 0,
+					notesPlayed: prev.data.notesPlayed + 1
+				},
+				music: firstElement.associatedMusic.randomPitch(),
+			}
 		}
 	}
 
@@ -513,10 +586,6 @@ export function main(csv_contents: string) {
 				.filter(data => data.length == 6) // ensure no invalid lines
 	}
 
-	function getLastElement<T>(array: ReadonlyArray<T>): T | undefined {
-		return array.at(-1)
-	}
-
 	const appendPlayableNode = (music: AMusic, state: State) => {
 		const newNode = new ANote(0, music, music.duration >= 1)
 		const { greenLine, redLine, blueLine, yellowLine } = state.gameFrame
@@ -524,8 +593,18 @@ export function main(csv_contents: string) {
 		const start = music.start
 
 		const availableLines = lines
-			.filter(lastNode => getLastElement(lastNode)
-			?.associatedMusic.start !== start)
+			.filter(line => {
+				if (line.back() === undefined) {
+					return true
+				}
+				const lastDuration = line.back()!.associatedMusic.duration
+				const lastStart = line.back()!.associatedMusic.start
+
+				if (line.back()!.endStream)
+					return start > lastDuration + lastStart || start < lastStart
+				else
+					return start != lastStart
+			})
 		const availableLine = availableLines.at(Math.floor(Math.random() * availableLines.length))
 
 		if (availableLine === undefined) {
@@ -544,8 +623,8 @@ export function main(csv_contents: string) {
 		const yEndPosition = -(Note.SPEED * music.duration * 1000) / Constants.TICK_RATE_MS
 		const endNode = new ANote(yEndPosition, music, false, true)
 		const newLine = newNode.isStream ? 
-							insertElement(insertElement(availableLine, newNode), endNode) :
-							insertElement(availableLine, newNode)
+							insertElement(insertElement(availableLine.line, newNode), endNode) :
+							insertElement(availableLine.line, newNode)
 
 		// determine which type
 		const lineNames = ['greenLine', 'redLine', 'blueLine', 'yellowLine']
@@ -556,7 +635,7 @@ export function main(csv_contents: string) {
 			return state
 
 		const newLineObj = {
-			[lineName]: newLine
+			[lineName]: availableLine.replaceLine(newLine)
 		}
 
 		return {
@@ -676,14 +755,20 @@ export function main(csv_contents: string) {
 		} 
 
 		lines.forEach(
-			(nodes, lineIndex) => nodes.forEach(
+			(line, lineIndex) => line.line.forEach(
 				(node, nodeIndex, nodesArr) => {
 					drawOnSVG(color[lineIndex], xLocation[lineIndex])(node.y)
-					if (node.isStream) {
-						const endNode = nodesArr.at(nodeIndex + 1)
-						if (!endNode)
-							return
-						drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, endNode.y)
+					if (node.endStream) {
+						if (nodeIndex === 0) {
+							const lineEnd = (line.hold && line.clicked > -1) ? line.clicked : Viewport.UNRENDER_THRESHOLD
+							drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, lineEnd)
+							if (line.hold && line.clicked > -1) drawOnSVG(color[lineIndex], xLocation[lineIndex])(line.clicked)
+						} else {
+							const endNode = nodesArr.at(nodeIndex - 1)
+							if (!endNode)
+								return
+							drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, endNode.y)
+						}
 					}
 				}
 			)
@@ -712,23 +797,12 @@ export function main(csv_contents: string) {
 		musicPlayer(s)
 	};
 
-	const tickLine = (line: ReadonlyArray<Note>) => 
-		(line.length > 0 ? 
-			line.at(0)!.y > Viewport.UNRENDER_THRESHOLD ? 
-			line.slice(1) : 
-			line
-		: line).map(note => ({...note, y: note.y + Note.SPEED}))
-
-		// line
-		// 	.filter(note => note.y <= Viewport.UNRENDER_THRESHOLD)
-		// 	.map(note => ({...note, y: note.y + Note.SPEED}))
-
 	const missedLine = (prev: GameFrame) => 
 		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
 		.reduce(
 			(missed, line) => 
-				missed + (line.at(0) ? 
-				Number(line.at(0)!.y > Zones.END_DETECTION_ZONE) : 
+				missed + (line.front() ? 
+				Number(line.front()!.y > Zones.END_DETECTION_ZONE) : 
 				0),
 		0)
 
@@ -736,16 +810,16 @@ export function main(csv_contents: string) {
 		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
 		.reduce(
 			(missed, line) => 
-				missed + (line.at(0) ? 
-				Number(line.at(0)!.y > Viewport.UNRENDER_THRESHOLD) : 
+				missed + (line.front() ? 
+				Number(line.front()!.y > Viewport.UNRENDER_THRESHOLD && !line.front()!.isStream) : 
 				0),
 		0)
 
 	const tickGameFrame = (prev: GameFrame) => new AGameFrame(
-			tickLine(prev.greenLine),
-			tickLine(prev.redLine),
-			tickLine(prev.blueLine),
-			tickLine(prev.yellowLine)
+			prev.greenLine.tick(),
+			prev.redLine.tick(),
+			prev.blueLine.tick(),
+			prev.yellowLine.tick()
 		)
 
 	const tick = (prev: State) => {
@@ -774,6 +848,7 @@ export function main(csv_contents: string) {
 			map(() => tick),
 			mergeWith(control$, noteStream$),
 			scan((prevState: State, modifier: (prev: State) => State) => modifier(prevState), initialState(notesLength)),
+			// tap((value) => console.log(value.data.notesPlayed))
 		)
         .subscribe((s: State) => {
             render(s);
