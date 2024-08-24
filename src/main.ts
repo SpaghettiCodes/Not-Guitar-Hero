@@ -52,7 +52,7 @@ const Constants = {
 	// SONG_NAME: 'renaiCirculation',
 	// SONG_NAME: 'stapleStable',
 	// SONG_NAME: 'turningLove',
-	// SONG_NAME: 'Say!Fanfare',
+	SONG_NAME: 'Say!Fanfare',
 	// SONG_NAME: "RockinRobin",
     // SONG_NAME: "ThroughTheFireAndTheFlames",
 	// SONG_NAME: "pianoMan",
@@ -64,7 +64,7 @@ const Constants = {
 	// SONG_NAME: 'dotSmall',
 	// SONG_NAME: 'drag',
 	// SONG_NAME: 'drag2',
-	SONG_NAME: 'drag3',
+	// SONG_NAME: 'drag3',
 	// SONG_NAME: "sus",
 	// SONG_NAME: "sageJihen",
 	// SONG_NAME: "f--kingbull----",
@@ -93,16 +93,6 @@ type Event = "keydown" | "keyup" | "keypress";
 /** Utility functions */
 
 /** State processing */
-
-type Music = Readonly<{
-	played: Boolean
-	instrument: string,
-	velocity: number,
-	pitch: number,
-	start: number,
-	end: number,
-	duration: number
-}>
 
 class AMusic {
 	readonly duration: number;
@@ -152,28 +142,33 @@ class AMusic {
 	}
 
 	public readonly stopSound = () => {
-		console.log("%s | %f | stop", this.instrument, this.pitch)
 		samples[this.instrument].triggerRelease(
 			Tone.Frequency(this.pitch, 'midi').toNote(),
 		)
 	}
 }
 
-type Note = Readonly<{
-	y: number,
-	associatedMusic: AMusic
-	isStream: boolean
-	endStream: boolean
-}>
-
 class ANote {
 	constructor (
 		public readonly y: number,
+		public readonly endY: number,
 		public readonly associatedMusic: AMusic,
 
 		public readonly isStream: boolean = false,
-		public readonly endStream: boolean = false
-	) {  }
+		public readonly clicked: boolean = false,
+	) { }
+
+	public readonly click = () => {
+		return new ANote(this.y, this.endY, this.associatedMusic, this.isStream, true)
+	}
+
+	public readonly unclick = () => {
+		return new ANote(this.y, this.endY, this.associatedMusic, this.isStream, false)
+	}
+
+	public readonly move = () => this.clicked ? 
+	new ANote(this.y, this.endY + Note.SPEED, this.associatedMusic, this.isStream, this.clicked) :
+	new ANote(this.y + Note.SPEED, this.endY + Note.SPEED, this.associatedMusic, this.isStream, this.clicked)
 }
 
 class ALine {
@@ -199,6 +194,14 @@ class ALine {
 		return this.line.at(0)
 	}
 
+	public readonly replaceFront = (newNode: ANote, replace: ANote) => {
+		const index = this.line.indexOf(replace)
+		if (index < 0) {
+			return this
+		}
+		return this.replaceLine([...this.line.slice(0, index), newNode, ...this.line.slice(index + 1)])
+	}
+
 	public readonly back = () => {
 		return this.line.at(-1)
 	}
@@ -210,20 +213,13 @@ class ALine {
 	public readonly tick = () => {
 		return this.replaceLine(
 			(this.line.length > 0 ? 
-				this.line.at(0)!.y > Viewport.UNRENDER_THRESHOLD ? 
+				((this.line.at(0)!.isStream) ? this.line.at(0)!.endY : this.line.at(0)!.y) > Viewport.UNRENDER_THRESHOLD ? 
 				this.line.slice(1) : 
 				this.line
-			: this.line).map(note => ({...note, y: note.y + Note.SPEED}))
+			: this.line).map(note => note.move())
 		)
 	}
 }
-
-type GameFrame = Readonly<{
-	greenLine: ALine
-	redLine: ALine
-	blueLine: ALine
-	yellowLine: ALine
-}>
 
 type lineNames = 'greenLine' | 'redLine' | 'blueLine' | 'yellowLine'
 
@@ -235,15 +231,6 @@ class AGameFrame {
 		public readonly yellowLine: ALine = new ALine(),
 	) { }
 }
-
-type GameData = Readonly<{
-	multiplier: number,
-	score: number,
-	combo: number,
-
-	totalNodes: number,
-	notesPlayed: number,
-}>
 
 class AGameData {
 	constructor (
@@ -259,9 +246,9 @@ type State = Readonly<{
     gameEnd: boolean,
 
 	keyPressed: ReadonlyArray<Key>,
-	gameFrame: GameFrame,
+	gameFrame: AGameFrame,
 
-	data: GameData,
+	data: AGameData,
 
 	music: AMusic | null
 	startStream: AMusic | null
@@ -384,7 +371,7 @@ export function main(csv_contents: string) {
 
 	const checkReleaseDetection = (key: lineNames) => (prev: State) => {
 		const lineDownPosition = prev.gameFrame[key].clicked
-		const lineAssociated = prev.gameFrame[key].lineUp(-1)
+		const lineAssociated = prev.gameFrame[key].lineUp()
 		const firstElement = lineAssociated.front()
 
 		if (!firstElement)
@@ -397,8 +384,7 @@ export function main(csv_contents: string) {
 				music: null
 			}
 
-		// lineDownPosition is -1 ==> didnt record any nodes on click ==> ignore
-		if (!firstElement.endStream || lineDownPosition === -1)
+		if (!firstElement.isStream || !firstElement.clicked)
 			return {
 				...prev,
 				gameFrame: {
@@ -410,7 +396,7 @@ export function main(csv_contents: string) {
 
 		// stream is released
 
-		const elementY = firstElement.y
+		const elementY = firstElement.endY
 		// remove node
 		const removedLine = {
 			[key]: lineAssociated.removeFront().lineUp(elementY)
@@ -442,13 +428,14 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...removedLine
+					...{
+						[key]: lineAssociated.replaceFront(firstElement.unclick(), firstElement)
+					}
 				},
 				data: {
 					...prev.data,
 					multiplier: 1,
 					combo: 0,
-					notesPlayed: prev.data.notesPlayed + 1
 				},
 				stopMusic: firstElement.associatedMusic,
 			}
@@ -456,7 +443,7 @@ export function main(csv_contents: string) {
 	}
 
 	const checkHitDetection = (key: lineNames) => (prev: State) => {
-		const lineAssociated = prev.gameFrame[key].lineDown(-1)
+		const lineAssociated = prev.gameFrame[key].lineDown()
 		const firstElement = lineAssociated.front()
 
 		if (!firstElement)
@@ -471,25 +458,8 @@ export function main(csv_contents: string) {
 
 		const elementY = firstElement.y
 		const isStream = firstElement.isStream
-		const endStream = firstElement.endStream
 
-		// endStream isnt supposed to be clicked, hm
-
-		// if (endStream)
-		// 	return {
-		// 		...prev,
-		// 		gameFrame: {
-		// 			...prev.gameFrame,
-		// 			...({ [key]: lineAssociated.removeFront().lineDown(elementY) })
-		// 		},
-		// 		data: {
-		// 			...prev.data,
-		// 			notesPlayed: prev.data.notesPlayed + 1
-		// 		},
-		// 		music: null
-		// 	}
-
-		if (!(elementY >= Zones.DETECTION_ZONE && elementY <= Zones.END_DETECTION_ZONE) || endStream)
+		if (!(elementY >= Zones.DETECTION_ZONE && elementY <= Zones.END_DETECTION_ZONE))
 			return {
 				...prev,
 				gameFrame: {
@@ -498,10 +468,6 @@ export function main(csv_contents: string) {
 				},
 				music: null
 			}
-
-		// anything below here is 
-		// 1. within Detection Zone
-		// 2. NOT a endStream Node
 
 		// remove node
 		const removedLine = {
@@ -521,11 +487,13 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...removedLine
+					...((isStream) ? {
+						[key]: lineAssociated.replaceFront(firstElement.click(), firstElement)
+					} : removedLine)
 				},
 				data: {
 					...prev.data,
-					...((isStream || endStream) ? {} : newScores),
+					...((isStream) ? {} : newScores),
 					notesPlayed: prev.data.notesPlayed + Number((isStream) ? 0 : 1)
 				},
 				...((isStream) ? 
@@ -587,7 +555,8 @@ export function main(csv_contents: string) {
 	}
 
 	const appendPlayableNode = (music: AMusic, state: State) => {
-		const newNode = new ANote(0, music, music.duration >= 1)
+		const yEndPosition = -(Note.SPEED * music.duration * 1000) / Constants.TICK_RATE_MS
+		const newNode = new ANote(0, yEndPosition, music, music.duration >= 1)
 		const { greenLine, redLine, blueLine, yellowLine } = state.gameFrame
 		const lines = Array(greenLine, redLine, blueLine, yellowLine)
 		const start = music.start
@@ -600,7 +569,7 @@ export function main(csv_contents: string) {
 				const lastDuration = line.back()!.associatedMusic.duration
 				const lastStart = line.back()!.associatedMusic.start
 
-				if (line.back()!.endStream)
+				if (line.back()!.isStream)
 					return start > lastDuration + lastStart || start < lastStart
 				else
 					return start != lastStart
@@ -620,11 +589,7 @@ export function main(csv_contents: string) {
 		}
 
 		// set new line
-		const yEndPosition = -(Note.SPEED * music.duration * 1000) / Constants.TICK_RATE_MS
-		const endNode = new ANote(yEndPosition, music, false, true)
-		const newLine = newNode.isStream ? 
-							insertElement(insertElement(availableLine.line, newNode), endNode) :
-							insertElement(availableLine.line, newNode)
+		const newLine = insertElement(availableLine.line, newNode)
 
 		// determine which type
 		const lineNames = ['greenLine', 'redLine', 'blueLine', 'yellowLine']
@@ -757,18 +722,10 @@ export function main(csv_contents: string) {
 		lines.forEach(
 			(line, lineIndex) => line.line.forEach(
 				(node, nodeIndex, nodesArr) => {
-					drawOnSVG(color[lineIndex], xLocation[lineIndex])(node.y)
-					if (node.endStream) {
-						if (nodeIndex === 0) {
-							const lineEnd = (line.hold && line.clicked > -1) ? line.clicked : Viewport.UNRENDER_THRESHOLD
-							drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, lineEnd)
-							if (line.hold && line.clicked > -1) drawOnSVG(color[lineIndex], xLocation[lineIndex])(line.clicked)
-						} else {
-							const endNode = nodesArr.at(nodeIndex - 1)
-							if (!endNode)
-								return
-							drawBarSVG(color[lineIndex], xLocation[lineIndex])(node.y, endNode.y)
-						}
+					drawOnSVG(color[lineIndex], xLocation[lineIndex])(Math.min(node.y, Viewport.UNRENDER_THRESHOLD))
+					if (node.isStream) {
+						drawBarSVG(color[lineIndex], xLocation[lineIndex])(Math.min(node.y, Viewport.UNRENDER_THRESHOLD), node.endY)
+						drawOnSVG(color[lineIndex], xLocation[lineIndex])(node.endY)
 					}
 				}
 			)
@@ -797,7 +754,7 @@ export function main(csv_contents: string) {
 		musicPlayer(s)
 	};
 
-	const missedLine = (prev: GameFrame) => 
+	const missedLine = (prev: AGameFrame) => 
 		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
 		.reduce(
 			(missed, line) => 
@@ -806,16 +763,16 @@ export function main(csv_contents: string) {
 				0),
 		0)
 
-	const unrenderedNodes = (prev: GameFrame) => 
+	const unrenderedNodes = (prev: AGameFrame) => 
 		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
 		.reduce(
 			(missed, line) => 
-				missed + (line.front() ? 
-				Number(line.front()!.y > Viewport.UNRENDER_THRESHOLD && !line.front()!.isStream) : 
-				0),
+				missed + (line.front() ? Number(
+					(line.front()!.isStream ? line.front()!.endY : line.front()!.y) > Viewport.UNRENDER_THRESHOLD
+				) : 0),
 		0)
 
-	const tickGameFrame = (prev: GameFrame) => new AGameFrame(
+	const tickGameFrame = (prev: AGameFrame) => new AGameFrame(
 			prev.greenLine.tick(),
 			prev.redLine.tick(),
 			prev.blueLine.tick(),
