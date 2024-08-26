@@ -15,6 +15,14 @@ TD {
     font-family: arial, helvetica, sans-serif;
 }
 
+.button-div {
+	justify-content: flex-end;
+}
+
+.flex-grow {
+	flex-grow: 1;
+}
+
 body {
     display: flex;
     flex-direction: column;
@@ -31,6 +39,31 @@ H1 {
     padding: 0.1em 0.1em 0.1em 0.1em;
     box-shadow: 0em 0em 0.15em rgb(211, 211, 211);
     text-shadow: 0em 0em 1px rgb(68, 68, 68);
+}
+
+#menu {
+	box-sizing: border-box;
+	width: 360px;
+	height: 400px;
+	padding-right: 5px;
+	gap: 0.5rem;
+	overflow-y: auto;
+}
+
+.menu_item {
+	box-sizing: border-box;
+	padding: 15px;
+	border-radius: 5px;
+	/* filter: drop-shadow(1px 1px 1px); */
+	box-shadow: 0.1rem 0.1rem 1rem rgb(224, 224, 224) inset;;
+    background-color: rgb(177, 173, 173);
+
+	transition: background-color 1s;
+}
+
+.menu_item:hover {
+    background-color: rgb(116, 115, 115);
+	cursor: pointer;
 }
 
 .flex {

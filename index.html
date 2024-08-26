@@ -6,8 +6,7 @@
     <body>
         <h1>instrument Hero.js</h1> 
         <main id="main" class="flex row">
-			<div id="menu">
-				
+			<div id="menu" class="flex col">
 			</div>
 			<div id='game' class="hide">
 				<div class="flex row">
@@ -214,7 +213,7 @@
 						</g>
 					</svg>
 					<div id="sideBar" class="flex col">
-						<div id="info" class="flex col">
+						<div id="info" class="flex col flex-grow">
 							<div class="text">
 								<span class="left">Multiplier: </span>
 								<span class="right" id="multiplierText">...</span>
@@ -230,6 +229,11 @@
 							<div class="text">
 								<span class="left">Highscore: </span>
 								<span class="right" id="highScoreText">...</span>
+							</div>
+							<div class="flex col flex-grow button-div">
+								<button id="backButton">
+									Back
+								</button>
 							</div>
 						</div>
 					</div>

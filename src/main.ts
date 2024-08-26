@@ -20,6 +20,8 @@ import * as Tone from "tone";
 import { SampleLibrary } from "./tonejs-instruments";
 
 /** Constants */
+const { protocol, hostname, port } = new URL(import.meta.url);
+const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
 
 const Viewport = {
     CANVAS_WIDTH: 200,
@@ -37,9 +39,8 @@ const Zones = {
 }
 
 const SongList = [
-	"nightsOfNights",
-	"nightsOfNights_bg",
-	"nightsOfNights_isuck",
+	'this does not exist',
+	"nightsOfNights-piano",
 	"stickyBug",
 	'megalovania',
 	'megalovania-bg',
@@ -50,6 +51,7 @@ const SongList = [
 	'renaiCirculation',
 	'stapleStable',
 	'turningLove',
+	'turningLove2',
 	'Say!Fanfare',
 	"RockinRobin",
     "ThroughTheFireAndTheFlames",
@@ -80,7 +82,8 @@ const Constants = {
 const Note = {
     RADIUS: 0.07 * Viewport.CANVAS_WIDTH,
     TAIL_WIDTH: 10,
-	SPEED: 3.5 // xunit / tickz
+	SPEED: 7
+	// SPEED: 3.5 // xunit / tickz
 };
 
 const Bar = {
@@ -284,9 +287,11 @@ const tick = (s: State) => s;
  * @param elem SVG element to display
  */
 const show = (elem: SVGGraphicsElement | HTMLElement) => {
+	elem instanceof SVGGraphicsElement ? 
+	elem.setAttribute("visibility", "visible") : 
 	elem.setAttribute('class', '')
-	// elem.setAttribute("visibility", "visible");
-    elem.parentNode!.appendChild(elem);
+    
+	elem.parentNode!.appendChild(elem);
 };
 
 /**
@@ -294,8 +299,9 @@ const show = (elem: SVGGraphicsElement | HTMLElement) => {
  * @param elem SVG element to hide
  */
 const hide = (elem: SVGGraphicsElement | HTMLElement) =>
+	elem instanceof SVGGraphicsElement ?
+	elem.setAttribute("visibility", "hidden"):
 	elem.setAttribute('class', 'hide')
-	// elem.setAttribute("visibility", "hidden");
 
 /**
  * Creates an SVG element with the given properties.
@@ -390,7 +396,7 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...({ [key]: lineAssociated })
+					[key]: lineAssociated
 				},
 				music: null
 			}
@@ -400,7 +406,7 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...({ [key]: lineAssociated })
+					[key]: lineAssociated
 				},
 				music: null
 			}
@@ -408,20 +414,17 @@ export function main(csv_contents: string) {
 		// stream is released
 
 		const elementY = firstElement.endY
-		// remove node
-		const removedLine = {
-			[key]: lineAssociated.removeFront().lineUp(elementY)
-		}
 
 		const newCombo = prev.data.combo + 1
 		const newMultiplier = 1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1))
 
 		if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
+			// remove element
 			return {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...removedLine
+					[key]: lineAssociated.removeFront().lineUp(elementY)
 				},
 				data: {
 					...prev.data,
@@ -438,9 +441,7 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...{
-						[key]: lineAssociated.replaceFront(firstElement.unclick(), firstElement)
-					}
+					[key]: lineAssociated.replaceFront(firstElement.unclick(), firstElement)
 				},
 				data: {
 					...prev.data,
@@ -461,7 +462,7 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...({ [key]: lineAssociated })
+					[key]: lineAssociated
 				},
 				music: null
 			}
@@ -474,15 +475,12 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...({ [key]: lineAssociated })
+					[key]: lineAssociated
 				},
 				music: null
 			}
 
 		// remove node
-		const removedLine = {
-			[key]: lineAssociated.removeFront().lineDown(elementY)
-		}
 
 		const newCombo = prev.data.combo + 1
 		const newMultiplier = 1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1))
@@ -497,17 +495,17 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...((isStream) ? {
-						[key]: lineAssociated.replaceFront(firstElement.click(), firstElement)
-					} : removedLine)
+					[key] : (isStream) ? 
+						lineAssociated.replaceFront(firstElement.click(), firstElement) : 
+						lineAssociated.removeFront().lineDown(elementY)
 				},
 				data: {
 					...prev.data,
 					...((isStream) ? {} : newScores)
 				},
 				...((isStream) ? 
-				{startStream: firstElement.associatedMusic} :
-				{music: firstElement.associatedMusic}),
+				{ startStream: firstElement.associatedMusic } :
+				{ music: firstElement.associatedMusic }),
 			}
 		}
 		else {
@@ -516,7 +514,7 @@ export function main(csv_contents: string) {
 				...prev,
 				gameFrame: {
 					...prev.gameFrame,
-					...removedLine
+					[key]: lineAssociated.removeFront().lineDown(elementY)
 				},
 				data: {
 					...prev.data,
@@ -586,13 +584,10 @@ export function main(csv_contents: string) {
 
 		if (availableLine === undefined) {
 			// all 4 lines are full, just play the sound
-			return {
-				...state,
-				data: {
-					...state.data
-				},
-				music: music
-			}
+			// can ah like that? idk
+			const maxTravelTime = Zones.PERFECT_ZONE / Note.SPEED * Constants.TICK_RATE_MS
+			const detached = of(music).pipe(delay(maxTravelTime)).subscribe(music.playSound)
+			return state
 		}
 
 		// set new line
@@ -664,7 +659,6 @@ export function main(csv_contents: string) {
 	}
 
 	const { notesLength, noteStream$ } = createNoteStreamObservable()
-	console.log(notesLength)
 
     /** Determines the rate of time steps */
     const tick$ = interval(Constants.TICK_RATE_MS);
@@ -822,6 +816,14 @@ export function main(csv_contents: string) {
                 hide(gameover);
             }
         });
+
+	fromEvent(document.getElementById('backButton') as HTMLElement, 'click')
+	.pipe()
+	.subscribe(() => {
+		source$.unsubscribe()
+		hide(game)
+		showMenu()
+	})
 }
 
 // Load in the instruments and then start your game!
@@ -851,33 +853,61 @@ export const samples = SampleLibrary.load({
 	baseUrl: "samples/",
 });
 
+const renderGame = (songName: string) => {
+	fetch(`${baseUrl}/assets/${songName}.csv`)
+		.then((response) => {
+			if (!response.ok)
+				throw response.statusText
+			return response.text()
+		})
+		.then((text) => main(text))
+		.catch((error) => {
+				console.error("Error fetching the CSV file:", error),
+				showMenu()
+			}
+		);
+}
+
+const showMenu = () => show(document.getElementById('menu')!)
+
+const renderMenu = () => {
+	const menu = document.getElementById('menu')!
+
+	const datas = SongList.map(songName => {
+		const menuDiv = document.createElement('div')
+		menuDiv.setAttribute('class', 'menu_item')
+		menuDiv.innerText = songName
+		menu.appendChild(menuDiv)
+
+		const menu$ = fromEvent(menuDiv, 'click')
+		.pipe(
+			map(() => songName)
+		)
+
+		return {
+			songName: songName,
+			listener: menu$
+		}
+	})
+
+	const listener$ = merge(...datas.map(data => data.listener))
+	.subscribe(
+		(songName) => {
+			renderGame(songName)
+		}
+	)
+}
+
 // The following simply runs your main function on window load.  Make sure to leave it in place.
 // You should not need to change this, beware if you are.
 if (typeof window !== "undefined") {
-    const start_game = (contents: string) => {
-        document.body.addEventListener(
-            "mousedown",
-            function () {
-				console.log('Starting the Game')
-                main(contents);
-            },
-            { once: true },
-        );
-    };
-
-    const { protocol, hostname, port } = new URL(import.meta.url);
-    const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
-
     Tone.ToneAudioBuffer.loaded().then(() => {
         for (const instrument in samples) {
             samples[instrument].toDestination();
             samples[instrument].release = 0.5;
         }
-		fetch(`${baseUrl}/assets/${Constants.SONG_NAME}.csv`)
-			.then((response) => response.text())
-			.then((text) => start_game(text))
-			.catch((error) =>
-				console.error("Error fetching the CSV file:", error),
-			);
     });
+
+	renderMenu()
+	showMenu()
 }
