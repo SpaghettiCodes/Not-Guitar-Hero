@@ -15,7 +15,7 @@
 import "./style.css";
 
 import { from, fromEvent, interval, merge, Observable, of, timer } from "rxjs";
-import { map, filter, scan, mergeWith, startWith, mergeMap, take, delay, last, tap, first, finalize } from "rxjs/operators";
+import { map, filter, scan, mergeWith, startWith, mergeMap, take, delay, last, tap, first, finalize, endWith, concatWith } from "rxjs/operators";
 import * as Tone from "tone";
 import { SampleLibrary } from "./tonejs-instruments";
 
@@ -36,41 +36,44 @@ const Zones = {
 	END_DETECTION_ZONE: 375,
 }
 
+const SongList = [
+	"nightsOfNights",
+	"nightsOfNights_bg",
+	"nightsOfNights_isuck",
+	"stickyBug",
+	'megalovania',
+	'megalovania-bg',
+	'monstadt-night',
+	'IlVentoDoro',
+	'IlVentoDoro2',
+	'summertime',
+	'renaiCirculation',
+	'stapleStable',
+	'turningLove',
+	'Say!Fanfare',
+	"RockinRobin",
+    "ThroughTheFireAndTheFlames",
+	"pianoMan",
+	"guitarMan",
+	'bonAppatit',
+	"constallation_vocals",
+	"cantina",
+	'dot',
+	'dotSmall',
+	'drag',
+	'drag2',
+	'drag3',
+	"sus",
+	"sageJihen",
+	"f--kingbull----",
+	"IWannaBeAGirl",
+	"loveTrial",
+	'combo'
+]
+
 const Constants = {
     TICK_RATE_MS: 10,
-
-	// SONG_NAME: "nightsOfNights",
-	// SONG_NAME: "nightsOfNights_bg",
-	// SONG_NAME: "nightsOfNights_isuck",
-	// SONG_NAME: "stickyBug",
-	// SONG_NAME: 'megalovania',
-	// SONG_NAME: 'megalovania-bg',
-	// SONG_NAME: 'monstadt-night',
-	// SONG_NAME: 'IlVentoDoro',
-	// SONG_NAME: 'IlVentoDoro2',
-	// SONG_NAME: 'summertime',
-	// SONG_NAME: 'renaiCirculation',
-	// SONG_NAME: 'stapleStable',
-	// SONG_NAME: 'turningLove',
-	SONG_NAME: 'Say!Fanfare',
-	// SONG_NAME: "RockinRobin",
-    // SONG_NAME: "ThroughTheFireAndTheFlames",
-	// SONG_NAME: "pianoMan",
-	// SONG_NAME: "guitarMan",
-	// SONG_NAME: 'bonAppatit',
-	// SONG_NAME: "constallation_vocals",
-	// SONG_NAME: "cantina",
-	// SONG_NAME: 'dot',
-	// SONG_NAME: 'dotSmall',
-	// SONG_NAME: 'drag',
-	// SONG_NAME: 'drag2',
-	// SONG_NAME: 'drag3',
-	// SONG_NAME: "sus",
-	// SONG_NAME: "sageJihen",
-	// SONG_NAME: "f--kingbull----",
-	// SONG_NAME: "IWannaBeAGirl",
-	// SONG_NAME: "loveTrial",
-
+	SONG_NAME: "combo",
 	BASE_SCORE: 10
 } as const;
 
@@ -237,8 +240,8 @@ class AGameData {
 		public readonly multiplier: number,
 		public readonly score: number,
 		public readonly combo: number,
-		public readonly totalNodes: number,
-		public readonly notesPlayed: number,
+
+		public readonly lastNodePlayed: boolean,
 	) { }
 }
 
@@ -255,16 +258,16 @@ type State = Readonly<{
 	stopMusic: AMusic | null
 }>;
 
-const initialState: (totalNodes: number) => State = (totalNodes) => ({
+const initialState: State = {
     gameEnd: false,
 	keyPressed: [],
 	gameFrame: new AGameFrame(),
-	data: new AGameData(1, 0, 0, totalNodes, 0),
+	data: new AGameData(1, 0, 0, false),
 
 	music: null,
 	startStream: null,
 	stopMusic: null,
-})
+}
 
 /**
  * Updates the state by proceeding with one time step.
@@ -280,8 +283,9 @@ const tick = (s: State) => s;
  * Displays a SVG element on the canvas. Brings to foreground.
  * @param elem SVG element to display
  */
-const show = (elem: SVGGraphicsElement) => {
-    elem.setAttribute("visibility", "visible");
+const show = (elem: SVGGraphicsElement | HTMLElement) => {
+	elem.setAttribute('class', '')
+	// elem.setAttribute("visibility", "visible");
     elem.parentNode!.appendChild(elem);
 };
 
@@ -289,8 +293,9 @@ const show = (elem: SVGGraphicsElement) => {
  * Hides a SVG element on the canvas.
  * @param elem SVG element to hide
  */
-const hide = (elem: SVGGraphicsElement) =>
-    elem.setAttribute("visibility", "hidden");
+const hide = (elem: SVGGraphicsElement | HTMLElement) =>
+	elem.setAttribute('class', 'hide')
+	// elem.setAttribute("visibility", "hidden");
 
 /**
  * Creates an SVG element with the given properties.
@@ -318,7 +323,7 @@ const createSvgElement = (
  * should be called here.
  */
 export function main(csv_contents: string) {
-    // Canvas elements
+	// Canvas elements
     const svg = document.querySelector("#svgCanvas") as SVGGraphicsElement &
         HTMLElement;
     const preview = document.querySelector(
@@ -327,6 +332,12 @@ export function main(csv_contents: string) {
     const gameover = document.querySelector("#gameOver") as SVGGraphicsElement &
         HTMLElement;
     const container = document.querySelector("#main") as HTMLElement;
+
+	const menu = document.getElementById('menu') as HTMLElement
+	const game = document.getElementById('game') as HTMLElement
+
+	hide(menu)
+	show(game)
 
     svg.setAttribute("height", `${Viewport.CANVAS_HEIGHT}`);
     svg.setAttribute("width", `${Viewport.CANVAS_WIDTH}`);
@@ -403,7 +414,7 @@ export function main(csv_contents: string) {
 		}
 
 		const newCombo = prev.data.combo + 1
-		const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+		const newMultiplier = 1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1))
 
 		if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
 			return {
@@ -416,8 +427,7 @@ export function main(csv_contents: string) {
 					...prev.data,
 					multiplier: newMultiplier,
 					score: prev.data.score + (Constants.BASE_SCORE * newMultiplier),
-					combo: newCombo,
-					notesPlayed: prev.data.notesPlayed + 1
+					combo: newCombo
 				},
 				stopMusic: firstElement.associatedMusic, 
 			}
@@ -475,7 +485,7 @@ export function main(csv_contents: string) {
 		}
 
 		const newCombo = prev.data.combo + 1
-		const newMultiplier = 1 + (Math.floor(newCombo / 10) * 0.2)
+		const newMultiplier = 1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1))
 
 		if (elementY >= Zones.GOOD_ZONE && elementY <= Zones.END_GOOD_ZONE) {
 			const newScores = {
@@ -493,8 +503,7 @@ export function main(csv_contents: string) {
 				},
 				data: {
 					...prev.data,
-					...((isStream) ? {} : newScores),
-					notesPlayed: prev.data.notesPlayed + Number((isStream) ? 0 : 1)
+					...((isStream) ? {} : newScores)
 				},
 				...((isStream) ? 
 				{startStream: firstElement.associatedMusic} :
@@ -512,8 +521,7 @@ export function main(csv_contents: string) {
 				data: {
 					...prev.data,
 					multiplier: 1,
-					combo: 0,
-					notesPlayed: prev.data.notesPlayed + 1
+					combo: 0
 				},
 				music: firstElement.associatedMusic.randomPitch(),
 			}
@@ -581,8 +589,7 @@ export function main(csv_contents: string) {
 			return {
 				...state,
 				data: {
-					...state.data,
-					notesPlayed: state.data.notesPlayed + 1
+					...state.data
 				},
 				music: music
 			}
@@ -640,12 +647,18 @@ export function main(csv_contents: string) {
 							...prev,
 							data: {
 								...prev.data,
-								notesPlayed: prev.data.notesPlayed + 1
 							},
 							music: value
 						}
 					),
 				)),
+				endWith((prev: State) => ({
+					...prev,
+					data: {
+						...prev.data,
+						lastNodePlayed: true
+					}
+				}))
 			)
 		}
 	}
@@ -735,7 +748,7 @@ export function main(csv_contents: string) {
 	const renderData = (s: State) => {
 		scoreText.innerText = String(s.data.score)
 		comboText.innerText = String(s.data.combo)
-		multiplier.innerText = String(s.data.multiplier)
+		multiplier.innerText = String(s.data.multiplier) + 'x'
 	}
 
 	const musicPlayer = (s: State) => {
@@ -763,14 +776,10 @@ export function main(csv_contents: string) {
 				0),
 		0)
 
-	const unrenderedNodes = (prev: AGameFrame) => 
+	const gameFrameEmpty = (prev: AGameFrame) => 
 		Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine)
-		.reduce(
-			(missed, line) => 
-				missed + (line.front() ? Number(
-					(line.front()!.isStream ? line.front()!.endY : line.front()!.y) > Viewport.UNRENDER_THRESHOLD
-				) : 0),
-		0)
+		.filter(line => line.line.length)
+		.length === 0
 
 	const tickGameFrame = (prev: AGameFrame) => new AGameFrame(
 			prev.greenLine.tick(),
@@ -780,18 +789,16 @@ export function main(csv_contents: string) {
 		)
 
 	const tick = (prev: State) => {
-		const unrenderedCount = unrenderedNodes(prev.gameFrame)
 		const missedCount = missedLine(prev.gameFrame)
 		return {
 			...prev,
-			gameEnd: prev.data.notesPlayed >= prev.data.totalNodes,
+			gameEnd: prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
 			gameFrame: tickGameFrame(prev.gameFrame),
 
 			data: {
 				...prev.data,
 				multiplier: missedCount ? 1 : prev.data.multiplier,
 				combo: missedCount ? 0 : prev.data.combo,
-				notesPlayed: prev.data.notesPlayed + unrenderedCount
 			},
 
 			music: null,
@@ -804,8 +811,7 @@ export function main(csv_contents: string) {
         .pipe(
 			map(() => tick),
 			mergeWith(control$, noteStream$),
-			scan((prevState: State, modifier: (prev: State) => State) => modifier(prevState), initialState(notesLength)),
-			// tap((value) => console.log(value.data.notesPlayed))
+			scan((prevState: State, modifier: (prev: State) => State) => modifier(prevState), initialState),
 		)
         .subscribe((s: State) => {
             render(s);

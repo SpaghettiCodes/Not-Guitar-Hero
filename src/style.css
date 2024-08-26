@@ -125,3 +125,8 @@ svg rect {
 	stop-color: #ffffff; 
 	stop-opacity: 1
 }
+
+.hide {
+	display: none;
+	/* visibility: hidden; */
+}
