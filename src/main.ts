@@ -54,9 +54,7 @@ if (typeof window !== "undefined") {
             samples[instrument].release = 0.5;
         }
 
-		renderSongSelection(samples);
-		showSongSelection();
-	});
-
-
+        renderSongSelection(samples);
+        showSongSelection();
+    });
 }

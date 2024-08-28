@@ -187,22 +187,22 @@ svg rect {
 
 .selected-highlight-green {
     filter: drop-shadow(0 0 0.5rem rgb(136, 255, 0));
-	stroke: white;
+    stroke: white;
 }
 
 .selected-highlight-red {
     filter: drop-shadow(0 0 0.5rem rgb(255, 41, 41));
-	stroke: white;
+    stroke: white;
 }
 
 .selected-highlight-blue {
     filter: drop-shadow(0 0 0.5rem rgb(0, 162, 255));
-	stroke: white;
+    stroke: white;
 }
 
 .selected-highlight-yellow {
     filter: drop-shadow(0 0 0.5rem rgb(255, 252, 61));
-	stroke: white;
+    stroke: white;
 }
 
 .hide {

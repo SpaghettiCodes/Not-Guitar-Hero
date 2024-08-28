@@ -263,9 +263,9 @@ const initialState: State = {
 /** Lazy Evaluation */
 
 interface LazySequence<T> {
-	value: T;
-	next: () => LazySequence<T>;
-};
+    value: T;
+    next: () => LazySequence<T>;
+}
 
 export {
     type Key,
@@ -300,5 +300,5 @@ export {
     newGameData,
     type State,
     initialState,
-	type LazySequence
+    type LazySequence,
 };

@@ -12,7 +12,7 @@ import {
     merge,
     mergeMap,
     of,
-	tap,
+    tap,
 } from "rxjs";
 import {
     clickNote,
@@ -45,24 +45,20 @@ import {
 } from "./constants";
 import { insertElement, processCSV, removeElement } from "./util";
 
-const keyPress$ = fromEvent<KeyboardEvent>(document, "keydown")
+const keyPress$ = fromEvent<KeyboardEvent>(document, "keydown");
 
-const keyRelease$ = fromEvent<KeyboardEvent>(document, "keyup")
+const keyRelease$ = fromEvent<KeyboardEvent>(document, "keyup");
 
 const fromKeyPress = (keyCode: Key) =>
-	keyPress$.pipe(
-		filter(({ code, repeat }) => code === keyCode && !repeat),
-	)
+    keyPress$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
 const fromKeyRelease = (keyCode: Key) =>
-	keyRelease$.pipe(
-		filter(({ code, repeat }) => code === keyCode && !repeat),
-	)
+    keyRelease$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
 const createKeyboardStream = () => {
-        const checkReleaseDetection = (key: lineNames) => (prev: State) => {
-		const lineAssociated = lineUp(prev.gameFrame[key]);
-		const firstElement = lineFront(lineAssociated);
+    const checkReleaseDetection = (key: lineNames) => (prev: State) => {
+            const lineAssociated = lineUp(prev.gameFrame[key]);
+            const firstElement = lineFront(lineAssociated);
 
             if (!firstElement)
                 return {
@@ -138,8 +134,7 @@ const createKeyboardStream = () => {
                 };
             }
         },
-
-		checkHitDetection = (key: lineNames) => (prev: State) => {
+        checkHitDetection = (key: lineNames) => (prev: State) => {
             const lineAssociated = lineDown(prev.gameFrame[key]);
             const firstElement = lineFront(lineAssociated);
 
@@ -227,8 +222,7 @@ const createKeyboardStream = () => {
                 };
             }
         },
-
-		controlObservable = (
+        controlObservable = (
             keyCode: Key,
             onkeyPress: (prev: State) => State,
             onkeyRelease: (prev: State) => State,
@@ -456,8 +450,14 @@ const createTickStream = () => {
     return interval(TimeConstant.TICK_RATE_MS).pipe(map(() => tick));
 };
 
-function createClickStream (buttonElement: HTMLElement) {
-	return fromEvent(buttonElement, 'click')
+function createClickStream(buttonElement: HTMLElement) {
+    return fromEvent(buttonElement, "click");
 }
 
-export { createKeyboardStream, createNoteStream, createTickStream, createClickStream, fromKeyPress };
+export {
+    createKeyboardStream,
+    createNoteStream,
+    createTickStream,
+    createClickStream,
+    fromKeyPress,
+};

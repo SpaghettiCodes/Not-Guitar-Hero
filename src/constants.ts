@@ -48,7 +48,7 @@ const SONG_LIST = [
     "IWannaBeAGirl",
     "loveTrial",
     "combo",
-	'sleepingBeauty',
+    "sleepingBeauty",
 ];
 
 const ScoreConstant = {

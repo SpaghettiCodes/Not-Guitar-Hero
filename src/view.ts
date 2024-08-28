@@ -1,6 +1,16 @@
 /** Rendering (side effects) */
 
-import { fromEvent, generate, map, merge, retry, sample, scan, Subscription, tap } from "rxjs";
+import {
+    fromEvent,
+    generate,
+    map,
+    merge,
+    retry,
+    sample,
+    scan,
+    Subscription,
+    tap,
+} from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -17,12 +27,13 @@ import {
     stopSound,
 } from "./types";
 import {
-	createClickStream,
+    createClickStream,
     createKeyboardStream,
     createNoteStream,
     createTickStream,
-	fromKeyPress,
+    fromKeyPress,
 } from "./observable";
+import { sorted } from "./util";
 
 /**
  * Renders the current state to the canvas.
@@ -195,9 +206,7 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
     const { protocol, hostname, port } = new URL(import.meta.url);
     const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
 
-    const generateGame = (
-        csv_contents: string,
-    ) => {
+    const generateGame = (csv_contents: string) => {
         showGame();
 
         svg.setAttribute("height", `${ViewportConstants.CANVAS_HEIGHT}`);
@@ -218,71 +227,77 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
             .subscribe((s: State) => {
                 renderGameFrame(s, sampleLibary);
             });
-		return source$
+        return source$;
     };
 
-	type streamData = Readonly<{
-		sourceStream: Subscription,
+    type streamData = Readonly<{
+        sourceStream: Subscription;
 
-		leave: boolean,
-		retry: boolean,
+        leave: boolean;
+        retry: boolean;
 
-		prevSourceStream: Subscription | null,
-	}>
+        prevSourceStream: Subscription | null;
+    }>;
 
-	const initialValue = (csv_contents: string): streamData => ({
-		sourceStream: generateGame(csv_contents),
-		leave: false,
-		retry: false,
-		prevSourceStream: null
-	})
+    const initialValue = (csv_contents: string): streamData => ({
+        sourceStream: generateGame(csv_contents),
+        leave: false,
+        retry: false,
+        prevSourceStream: null,
+    });
 
-	const backButton = () => {
-		const button$ = merge(
-			fromKeyPress("Escape"),
-			createClickStream(document.getElementById('backButton') as HTMLElement)
-		)
-		.pipe(
-			map(() => (prev: streamData) => ({...prev, leave: true, retry: false}))
-		)
-		return button$
-	}
+    const backButton = () => {
+        const button$ = merge(
+            fromKeyPress("Escape"),
+            createClickStream(
+                document.getElementById("backButton") as HTMLElement,
+            ),
+        ).pipe(
+            map(() => (prev: streamData) => ({
+                ...prev,
+                leave: true,
+                retry: false,
+            })),
+        );
+        return button$;
+    };
 
-	const retryButton = (csv_contents: string) => {
-		const retry$ = merge(
-			fromKeyPress("KeyR"),
-			createClickStream(document.getElementById('retryButton') as HTMLElement)
-		)
-			.pipe(
-				map(() => (prev: streamData) => ({
-					...prev,
-					sourceStream: generateGame(csv_contents),
-					prevSourceStream: prev.sourceStream,
-					leave: false, retry: true
-				})
-				)
-			)
-		return retry$
-	}
+    const retryButton = (csv_contents: string) => {
+        const retry$ = merge(
+            fromKeyPress("KeyR"),
+            createClickStream(
+                document.getElementById("retryButton") as HTMLElement,
+            ),
+        ).pipe(
+            map(() => (prev: streamData) => ({
+                ...prev,
+                sourceStream: generateGame(csv_contents),
+                prevSourceStream: prev.sourceStream,
+                leave: false,
+                retry: true,
+            })),
+        );
+        return retry$;
+    };
 
-	const linkButtons = (
-		csv_contents: string
-	) => {
-		const stream = merge(retryButton(csv_contents), backButton())
-		.pipe(
-			scan((prev, modifier) => modifier(prev), initialValue(csv_contents))
-		).subscribe(
-			(data) => {
-				if (data.leave) {
-					data.sourceStream.unsubscribe()
-					stream.unsubscribe()
-					showSongSelection()
-				} else if (data.retry && data.prevSourceStream) {
-					data.prevSourceStream.unsubscribe()
-				}
-			}
-		)
-	}
+    const linkButtons = (csv_contents: string) => {
+        const stream = merge(retryButton(csv_contents), backButton())
+            .pipe(
+                scan(
+                    (prev, modifier) => modifier(prev),
+                    initialValue(csv_contents),
+                ),
+            )
+            .subscribe((data) => {
+                if (data.leave) {
+                    data.sourceStream.unsubscribe();
+                    stream.unsubscribe();
+                    showSongSelection();
+                } else if (data.retry && data.prevSourceStream) {
+                    data.prevSourceStream.unsubscribe();
+                }
+            });
+    };
 
     fetch(`${baseUrl}/assets/${songName}.csv`)
         .then((response) => {
@@ -292,12 +307,12 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
         .then((text) => linkButtons(text))
         .catch((error) => {
             console.error("Error fetching the CSV file:", error),
-            showSongSelection();
+                showSongSelection();
         });
 }
 
 function showGame() {
-	hide(document.getElementById('loading') as HTMLElement);
+    hide(document.getElementById("loading") as HTMLElement);
     hide(document.getElementById("menu-main") as HTMLElement);
     show(document.getElementById("game") as HTMLElement);
 }
@@ -307,7 +322,9 @@ function showGame() {
 function renderSongSelection(sample: SampleLibraryType) {
     const menu = document.getElementById("menu")!;
 
-    const datas = SONG_LIST.map((songName) => {
+	const sortedSongList = sorted(SONG_LIST, (a) => (b) => a.toLowerCase() >= b.toLowerCase())
+
+    const datas = sortedSongList.map((songName) => {
         const menuDiv = document.createElement("div");
         menuDiv.setAttribute("class", "menu_item");
         menuDiv.innerText = songName;
@@ -319,13 +336,13 @@ function renderSongSelection(sample: SampleLibraryType) {
     });
 
     const listener$ = merge(...datas).subscribe((songName) => {
-		showLoading()
+        showLoading();
         renderGame(songName, sample);
     });
 }
 
 function showSongSelection() {
-	hide(document.getElementById('loading')  as HTMLElement);
+    hide(document.getElementById("loading") as HTMLElement);
     hide(document.getElementById("game") as HTMLElement);
     show(document.getElementById("menu-main") as HTMLElement);
 }
@@ -333,7 +350,7 @@ function showSongSelection() {
 function showLoading() {
     hide(document.getElementById("game") as HTMLElement);
     hide(document.getElementById("menu-main") as HTMLElement);
-	show(document.getElementById('loading')  as HTMLElement);
+    show(document.getElementById("loading") as HTMLElement);
 }
 
 export { renderSongSelection, showSongSelection, showLoading };
