@@ -5,7 +5,7 @@ import { NoteConstants, ViewportConstants } from "./constants";
 
 /** User input */
 
-type Key = "KeyS" | "KeyD" | "KeyJ" | "KeyK";
+type Key = "KeyS" | "KeyD" | "KeyJ" | "KeyK" | "KeyR" | "Escape";
 
 type MouseEventName = "keydown" | "keyup" | "keypress";
 
@@ -260,6 +260,13 @@ const initialState: State = {
     stopMusic: null,
 };
 
+/** Lazy Evaluation */
+
+interface LazySequence<T> {
+	value: T;
+	next: () => LazySequence<T>;
+};
+
 export {
     type Key,
     type MouseEventName,
@@ -293,4 +300,5 @@ export {
     newGameData,
     type State,
     initialState,
+	type LazySequence
 };
