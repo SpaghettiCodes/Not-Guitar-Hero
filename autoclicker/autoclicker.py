@@ -38,14 +38,12 @@ def on_click(x, y, button, pressed):
 
     if button == mouse.Button.left:
         oneLine = y
-        # fourCorners.append(pyautogui.position())
 
 listener = mouse.Listener(on_click=on_click)
 listener.start()
 
 while (
     oneLine is None
-    # len(fourCorners) < 4 # tl dl tr dr
 ):
     pass
 
@@ -53,8 +51,6 @@ listener.stop()
 listener.join()
 
 LTWH = (0, oneLine, pyautogui.size()[0], 5)
-# LTWH = ( fourCorners[0][0], fourCorners[0][1], abs(fourCorners[0][0] - fourCorners[2][0]), abs(fourCorners[0][1] - fourCorners[1][1]))
-# print(LTWH)
 
 print('Click on screen and set up things')
 

@@ -4,9 +4,11 @@
         <title>FIT2102 A1 2023</title>
     </head>
     <body>
-        <h1>instrument Hero.js</h1> 
+        <h1>definately not guitar hero.js</h1> 
         <main id="main" class="flex row">
-			<div id="menu" class="flex col">
+			<div id="menu-main">
+				<div id="menu">
+				</div>
 			</div>
 			<div id='game' class="hide">
 				<div class="flex row">
@@ -28,6 +30,7 @@
 								<stop
 									offset="100%"
 									id='green-highlight'
+									class="dark-green-highlight"
 								/>
 							</radialGradient>
 							<radialGradient
@@ -45,6 +48,7 @@
 								<stop
 									offset="100%"
 									id='red-highlight'
+									class="dark-red-highlight"
 								/>
 							</radialGradient>
 							<radialGradient
@@ -62,6 +66,7 @@
 								<stop
 									offset="100%"
 									id='blue-highlight'
+									class="dark-blue-highlight"
 								/>
 							</radialGradient>
 							<radialGradient
@@ -79,6 +84,7 @@
 								<stop
 									offset="100%"
 									id='yellow-highlight'
+									class="dark-yellow-highlight"
 								/>
 							</radialGradient>
 						</defs>
@@ -124,6 +130,7 @@
 							fill="url(#greenGradient)"
 							stroke="transparent"
 							stroke-width="2"
+							id="green"
 						/>
 						<circle
 							cx="40%"
@@ -132,6 +139,7 @@
 							fill="url(#redGradient)"
 							stroke="transparent"
 							stroke-width="2"
+							id="red"
 						/>
 						<circle
 							cx="60%"
@@ -140,6 +148,7 @@
 							fill="url(#blueGradient)"
 							stroke="transparent"
 							stroke-width="2"
+							id="blue"
 						/>
 						<circle
 							cx="80%"
@@ -148,6 +157,7 @@
 							fill="url(#yellowGradient)"
 							stroke="transparent"
 							stroke-width="2"
+							id="yellow"
 						/>
 	
 						<line
@@ -231,7 +241,7 @@
 								<span class="right" id="highScoreText">...</span>
 							</div>
 							<div class="flex col flex-grow button-div">
-								<button id="backButton">
+								<button id="backButton" class="back text">
 									Back
 								</button>
 							</div>
