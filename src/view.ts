@@ -196,7 +196,7 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
 		})
 	}
 
-	fetch(`${baseUrl}/public/assets/${songName}.csv`)
+	fetch(`${baseUrl}/assets/${songName}.csv`)
 		.then((response) => {
 			if (!response.ok)
 				throw response.statusText

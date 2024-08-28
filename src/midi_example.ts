@@ -5,7 +5,7 @@ const midiMaxValue = 127;
 
 const samples = SampleLibrary.load({
     instruments: SampleLibrary.list,
-    baseUrl: "public/samples/",
+    baseUrl: "samples/",
 });
 
 Tone.ToneAudioBuffer.loaded().then(() => {
