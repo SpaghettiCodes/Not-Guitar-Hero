@@ -7,12 +7,10 @@ const ViewportConstants = {
 } as const;
 
 const ZonesConstants = {
-    DETECTION_ZONE: 300,
     GOOD_ZONE: 320,
     PERFECT_ZONE: 340,
     END_PERFECT_ZONE: 360,
     END_GOOD_ZONE: 375,
-    END_DETECTION_ZONE: 375,
 };
 
 const SONG_LIST = [
@@ -49,6 +47,7 @@ const SONG_LIST = [
     "loveTrial",
     "combo",
     "sleepingBeauty",
+	"glimpseOfUs"
 ];
 
 const ScoreConstant = {
@@ -73,9 +72,9 @@ const BarConstants = {
 };
 
 const SeedConstants = {
-	pitchSEED: 42,
-	durationSEED: 24
-}
+    pitchSEED: 42,
+    durationSEED: 24,
+};
 
 export {
     ViewportConstants,
@@ -85,5 +84,5 @@ export {
     TimeConstant,
     NoteConstants,
     BarConstants,
-	SeedConstants
+    SeedConstants,
 };

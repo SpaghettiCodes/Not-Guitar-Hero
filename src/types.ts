@@ -42,7 +42,7 @@ const newMusic = (
 
 const getDuration = (sound: Music): number => sound.end - sound.start;
 
-const playSound = (sound: Music, samples: SampleLibraryType) => {
+const playSound = (sound: Music) => (samples: SampleLibraryType) => {
     const volume = sound.velocity / 127;
 
     samples[sound.instrument].triggerAttackRelease(
@@ -53,7 +53,7 @@ const playSound = (sound: Music, samples: SampleLibraryType) => {
     );
 };
 
-const startSound = (sound: Music, samples: SampleLibraryType) => {
+const startSound = (sound: Music) => (samples: SampleLibraryType) => {
     const volume = sound.velocity / 127;
 
     samples[sound.instrument].triggerAttack(
@@ -74,7 +74,7 @@ const randomPitch = (sound: Music, rng: RNGFields): Music => {
     };
 };
 
-const stopSound = (sound: Music, samples: SampleLibraryType) => {
+const stopSound = (sound: Music) => (samples: SampleLibraryType) => {
     samples[sound.instrument].triggerRelease(
         Tone.Frequency(sound.pitch, "midi").toNote(),
     );
@@ -268,23 +268,26 @@ abstract class RNG {
 }
 
 function RNGGenerator(seed: number): LazySequence<number> {
-	return function _next(seed: number): LazySequence<number> {
-		const newHash = RNG.hash(seed)
-		return {
-			value: RNG.scale(seed),
-			next: () => _next(newHash)
-		}
-	}(seed)
+    return (function _next(seed: number): LazySequence<number> {
+        const newHash = RNG.hash(seed);
+        return {
+            value: RNG.scale(seed),
+            next: () => _next(newHash),
+        };
+    })(seed);
 }
 
 /** Type to represent a State in the game */
 
 type RNGFields = Readonly<{
-	pitch: LazySequence<number>,
-	duration: LazySequence<number>
-}>
+    pitch: LazySequence<number>;
+    duration: LazySequence<number>;
+}>;
 
-const nextNumber = (rngfield: RNGFields) => ({pitch: rngfield.pitch.next(), duration: rngfield.duration.next()})
+const nextNumber = (rngfield: RNGFields) => ({
+    pitch: rngfield.pitch.next(),
+    duration: rngfield.duration.next(),
+});
 
 type State = Readonly<{
     gameEnd: boolean;
@@ -294,11 +297,9 @@ type State = Readonly<{
 
     data: GameData;
 
-    music: Music | null;
-    startStream: Music | null;
-    stopMusic: Music | null;
+    music: ((samples: SampleLibraryType) => void) | null;
 
-	rng: RNGFields
+    rng: RNGFields;
 }>;
 
 const initialState: State = {
@@ -308,13 +309,11 @@ const initialState: State = {
     data: newGameData(1, 0, 0, false),
 
     music: null,
-    startStream: null,
-    stopMusic: null,
 
-	rng: {
-		pitch: RNGGenerator(SeedConstants.pitchSEED),
-		duration: RNGGenerator(SeedConstants.durationSEED)
-	}
+    rng: {
+        pitch: RNGGenerator(SeedConstants.pitchSEED),
+        duration: RNGGenerator(SeedConstants.durationSEED),
+    },
 };
 
 export {
@@ -349,8 +348,8 @@ export {
     type GameData,
     newGameData,
     type State,
-	nextNumber,
+    nextNumber,
     initialState,
     type LazySequence,
-	RNGGenerator
+    RNGGenerator,
 };

@@ -1,13 +1,6 @@
 /** Rendering (side effects) */
 
-import {
-    fromEvent,
-    map,
-    merge,
-    scan,
-    Subscription,
-	tap,
-} from "rxjs";
+import { fromEvent, map, merge, scan, Subscription, tap } from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -126,7 +119,8 @@ function renderData(s: State) {
 
 function renderBallFrame(s: State) {
     ballSvg.innerHTML = "";
-    // ballSvg.childNodes.forEach(childNodes => childNodes.remove())
+    // const childrens = [...ballSvg.childNodes]
+	// childrens.forEach(child => child.remove())
 
     const { greenLine, redLine, blueLine, yellowLine } = s.gameFrame;
     const xLocation = ["20%", "40%", "60%", "80%"];
@@ -177,9 +171,7 @@ function renderBallFrame(s: State) {
 }
 
 function musicPlayer(s: State, sampleLibary: SampleLibraryType) {
-    if (s.music) playSound(s.music, sampleLibary);
-    if (s.startStream) startSound(s.startStream, sampleLibary);
-    if (s.stopMusic) stopSound(s.stopMusic, sampleLibary);
+    if (s.music !== null) s.music(sampleLibary);
 }
 
 const gameOver = document.getElementById("gameOver") as SVGGraphicsElement &
@@ -219,8 +211,8 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
                 scan(
                     (prevState: State, modifier: (prev: State) => State) => ({
                         ...modifier(prevState),
-						rng: nextNumber(prevState.rng)
-					}),
+                        rng: nextNumber(prevState.rng),
+                    }),
                     initialState,
                 ),
             )
@@ -322,7 +314,10 @@ function showGame() {
 function renderSongSelection(sample: SampleLibraryType) {
     const menu = document.getElementById("menu")!;
 
-	const sortedSongList = sorted(SONG_LIST, (a) => (b) => a.toLowerCase() >= b.toLowerCase())
+    const sortedSongList = sorted(
+        SONG_LIST,
+        (a) => (b) => a.toLowerCase() >= b.toLowerCase(),
+    );
 
     const datas = sortedSongList.map((songName) => {
         const menuDiv = document.createElement("div");

@@ -28,16 +28,23 @@ const processCSV = (csv_contents: string) =>
 
 // function quickSort
 
-const inverse = <T>(f: (a: T) => (b: T) => boolean) => (a: T) => (b: T) => !f(a)(b)
+const inverse =
+    <T>(f: (a: T) => (b: T) => boolean) =>
+    (a: T) =>
+    (b: T) =>
+        !f(a)(b);
 
-function sorted<T>(array: ReadonlyArray<T>, comp: (a: T) => (b: T) => boolean): ReadonlyArray<T> {
-	if (!array.length) return []
-	const partition = array[0]
-	return [
-		...sorted(array.slice(1).filter(comp(partition)), comp),
-		partition, 
-		...sorted(array.slice(1).filter(inverse(comp)(partition)), comp)
-	]
+function sorted<T>(
+    array: ReadonlyArray<T>,
+    comp: (a: T) => (b: T) => boolean,
+): ReadonlyArray<T> {
+    if (!array.length) return [];
+    const partition = array[0];
+    return [
+        ...sorted(array.slice(1).filter(comp(partition)), comp),
+        partition,
+        ...sorted(array.slice(1).filter(inverse(comp)(partition)), comp),
+    ];
 }
 
 export { removeElement, insertElement, processCSV, sorted };

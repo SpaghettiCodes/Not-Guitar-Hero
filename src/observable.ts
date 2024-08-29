@@ -32,7 +32,9 @@ import {
     newNote,
     playSound,
     randomPitch,
+    startSound,
     State,
+    stopSound,
     tickLine,
     unclickNote,
     updateLine,
@@ -56,172 +58,159 @@ const fromKeyRelease = (keyCode: Key) =>
     keyRelease$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
 const createKeyboardStream = () => {
-    const checkReleaseDetection = (key: lineNames) => (prev: State) => {
-            const lineAssociated = lineUp(prev.gameFrame[key]);
-            const firstElement = lineFront(lineAssociated);
+    const checkReleaseDetection =
+            (key: lineNames) =>
+            (prev: State): State => {
+                const lineAssociated = lineUp(prev.gameFrame[key]);
+                const firstElement = lineFront(lineAssociated);
 
-            if (!firstElement)
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineAssociated,
-                    },
-                    music: null,
-                };
+                if (!firstElement)
+                    return {
+                        ...prev,
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineAssociated,
+                        },
+                        music: null,
+                    };
 
-            if (!firstElement.isStream || !firstElement.clicked)
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineAssociated,
-                    },
-                    music: null,
-                };
+                if (!firstElement.isStream || !firstElement.clicked)
+                    return {
+                        ...prev,
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineAssociated,
+                        },
+                        music: null,
+                    };
 
-            // stream is released
+                // stream is released
 
-            const elementY = firstElement.endY;
+                const elementY = firstElement.endY;
 
-            const newCombo = prev.data.combo + 1;
-            const newMultiplier =
-                1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1));
+                const newCombo = prev.data.combo + 1;
+                const newMultiplier =
+                    1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1));
 
-            if (
-                elementY >= ZonesConstants.GOOD_ZONE &&
-                elementY <= ZonesConstants.END_GOOD_ZONE
-            ) {
-                // remove element
+                if (
+                    elementY >= ZonesConstants.GOOD_ZONE &&
+                    elementY <= ZonesConstants.END_GOOD_ZONE
+                ) {
+                    // remove element
 
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineUp(
-                            lineRemoveFront(lineAssociated),
-                            elementY,
-                        ),
-                    },
-                    data: {
-                        ...prev.data,
-                        multiplier: newMultiplier,
-                        score:
-                            prev.data.score +
-                            ScoreConstant.BASE_SCORE * newMultiplier,
-                        combo: newCombo,
-                    },
-                    stopMusic: firstElement.associatedMusic,
-                };
-            } else {
-                // too early!
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineReplaceNote(
-                            lineAssociated,
-                            unclickNote(firstElement),
-                            firstElement,
-                        ),
-                    },
-                    data: {
-                        ...prev.data,
-                        multiplier: 1,
-                        combo: 0,
-                    },
-                    stopMusic: firstElement.associatedMusic,
-                };
-            }
-        },
-        checkHitDetection = (key: lineNames) => (prev: State) => {
-            const lineAssociated = lineDown(prev.gameFrame[key]);
-            const firstElement = lineFront(lineAssociated);
+                    return {
+                        ...prev,
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineUp(
+                                lineRemoveFront(lineAssociated),
+                                elementY,
+                            ),
+                        },
+                        data: {
+                            ...prev.data,
+                            multiplier: newMultiplier,
+                            score:
+                                prev.data.score +
+                                ScoreConstant.BASE_SCORE * newMultiplier,
+                            combo: newCombo,
+                        },
+                        music: stopSound(firstElement.associatedMusic),
+                    };
+                } else {
+                    // too early!
+                    return {
+                        ...prev,
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineReplaceNote(
+                                lineAssociated,
+                                unclickNote(firstElement),
+                                firstElement,
+                            ),
+                        },
+                        data: {
+                            ...prev.data,
+                            multiplier: 1,
+                            combo: 0,
+                        },
+                        music: stopSound(firstElement.associatedMusic),
+                    };
+                }
+            },
+        checkHitDetection =
+            (key: lineNames) =>
+            (prev: State): State => {
+                const lineAssociated = lineDown(prev.gameFrame[key]);
+                const firstElement = lineFront(lineAssociated);
 
-            if (!firstElement)
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineAssociated,
-                    },
-                    music: null,
-                };
+                if (!firstElement)
+                    return {
+                        ...prev,
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineAssociated,
+                        },
+                        music: null,
+                    };
 
-            const elementY = firstElement.y;
-            const isStream = firstElement.isStream;
+                const elementY = firstElement.y;
+                const isStream = firstElement.isStream;
 
-            if (
-                !(
-                    elementY >= ZonesConstants.DETECTION_ZONE &&
-                    elementY <= ZonesConstants.END_DETECTION_ZONE
+				// outside of detection zone, play random music
+                if (
+                    !(
+                        elementY >= ZonesConstants.GOOD_ZONE &&
+                        elementY <= ZonesConstants.END_GOOD_ZONE
+                    )
                 )
-            )
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineAssociated,
-                    },
-                    music: null,
-                };
+					return {
+						...prev,
+						data: {
+							...prev.data,
+							multiplier: 1,
+							combo: 0,
+						},
+						music: playSound(
+							randomPitch(firstElement.associatedMusic, prev.rng),
+						),
+					};
 
-            // remove node
+                // remove node
 
-            const newCombo = prev.data.combo + 1;
-            const newMultiplier =
-                1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1));
+                const newCombo = prev.data.combo + 1;
+                const newMultiplier =
+                    1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1));
 
-            if (
-                elementY >= ZonesConstants.GOOD_ZONE &&
-                elementY <= ZonesConstants.END_GOOD_ZONE
-            ) {
-                const newScores = {
-                    multiplier: newMultiplier,
-                    score:
-                        prev.data.score +
-                        ScoreConstant.BASE_SCORE * newMultiplier,
-                    combo: newCombo,
-                };
+				const newScores = {
+					multiplier: newMultiplier,
+					score:
+						prev.data.score +
+						ScoreConstant.BASE_SCORE * newMultiplier,
+					combo: newCombo,
+				};
 
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: isStream
-                            ? lineReplaceNote(
-                                  lineAssociated,
-                                  clickNote(firstElement),
-                                  firstElement,
-                              )
-                            : lineRemoveFront(lineAssociated),
-                        elementY,
-                    },
-                    data: {
-                        ...prev.data,
-                        ...(isStream ? {} : newScores),
-                    },
-                    ...(isStream
-                        ? { startStream: firstElement.associatedMusic }
-                        : { music: firstElement.associatedMusic }),
-                };
-            } else {
-                // too early!
-                return {
-                    ...prev,
-                    gameFrame: {
-                        ...prev.gameFrame,
-                        [key]: lineRemoveFront(lineAssociated),
-                    },
-                    data: {
-                        ...prev.data,
-                        multiplier: 1,
-                        combo: 0,
-                    },
-                    music: randomPitch(firstElement.associatedMusic, prev.rng),
-                };
-            }
-        },
+				return {
+					...prev,
+					gameFrame: {
+						...prev.gameFrame,
+						[key]: isStream
+							? lineReplaceNote(
+									lineAssociated,
+									clickNote(firstElement),
+									firstElement,
+								)
+							: lineRemoveFront(lineAssociated),
+					},
+					data: {
+						...prev.data,
+						...(isStream ? {} : newScores),
+					},
+					music: isStream
+						? startSound(firstElement.associatedMusic)
+						: playSound(firstElement.associatedMusic),
+				};
+            },
         controlObservable = (
             keyCode: Key,
             onkeyPress: (prev: State) => State,
@@ -280,7 +269,7 @@ const createNoteStream = (csv_contents: string) => {
             TimeConstant.DELAY_SEC * 1000,
             maxTravelTime - firstNoteStart,
         ),
-        appendPlayableNode = (music: Music, state: State) => {
+        appendPlayableNode = (music: Music, state: State): State => {
             const yEndPosition =
                 -(NoteConstants.SPEED * getDuration(music) * 1000) /
                 TimeConstant.TICK_RATE_MS;
@@ -365,20 +354,21 @@ const createNoteStream = (csv_contents: string) => {
                     ? delay(value.start * 1000 - maxTravelTime + delayBeginAmt)
                     : delay(value.start * 1000 + delayBeginAmt),
                 map(
-                    (value) => (prev: State) =>
-                        value.played
-                            ? appendPlayableNode(value, prev)
-                            : {
-                                  ...prev,
-                                  data: {
-                                      ...prev.data,
+                    (value) =>
+                        (prev: State): State =>
+                            value.played
+                                ? appendPlayableNode(value, prev)
+                                : {
+                                      ...prev,
+                                      data: {
+                                          ...prev.data,
+                                      },
+                                      music: playSound(value),
                                   },
-                                  music: value,
-                              },
                 ),
             ),
         ),
-        endWith((prev: State) => ({
+        endWith((prev: State): State => ({
             ...prev,
             data: {
                 ...prev.data,
@@ -408,7 +398,7 @@ const createTickStream = () => {
                     (lineFront(line)
                         ? Number(
                               lineFront(line)!.y >
-                                  ZonesConstants.END_DETECTION_ZONE,
+                                  ZonesConstants.END_GOOD_ZONE,
                           )
                         : 0),
                 0,
@@ -426,26 +416,24 @@ const createTickStream = () => {
                 tickLine(prev.redLine),
                 tickLine(prev.blueLine),
                 tickLine(prev.yellowLine),
-            );
+            ),
+        tick = (prev: State): State => {
+            const missedCount = missedLine(prev.gameFrame);
+            return {
+                ...prev,
+                gameEnd:
+                    prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
+                gameFrame: tickGameFrame(prev.gameFrame),
 
-    const tick = (prev: State) => {
-        const missedCount = missedLine(prev.gameFrame);
-        return {
-            ...prev,
-            gameEnd: prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
-            gameFrame: tickGameFrame(prev.gameFrame),
+                data: {
+                    ...prev.data,
+                    multiplier: missedCount ? 1 : prev.data.multiplier,
+                    combo: missedCount ? 0 : prev.data.combo,
+                },
 
-            data: {
-                ...prev.data,
-                multiplier: missedCount ? 1 : prev.data.multiplier,
-                combo: missedCount ? 0 : prev.data.combo,
-            },
-
-            music: null,
-            startStream: null,
-            stopMusic: null,
+                music: null,
+            };
         };
-    };
 
     return interval(TimeConstant.TICK_RATE_MS).pipe(map(() => tick));
 };
