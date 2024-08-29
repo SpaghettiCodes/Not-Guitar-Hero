@@ -47,7 +47,10 @@ const SONG_LIST = [
     "loveTrial",
     "combo",
     "sleepingBeauty",
-	"glimpseOfUs"
+	"glimpseOfUs",
+	"stayWithMe",
+	"ifICanStopOneHeartFromBreaking",
+	"biteTheSecondHand"
 ];
 
 const ScoreConstant = {

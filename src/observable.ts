@@ -15,6 +15,7 @@ import {
     tap,
 } from "rxjs";
 import {
+	addPlayableNode,
     clickNote,
     GameFrame,
     getDuration,
@@ -270,70 +271,9 @@ const createNoteStream = (csv_contents: string) => {
             maxTravelTime - firstNoteStart,
         ),
         appendPlayableNode = (music: Music, state: State): State => {
-            const yEndPosition =
-                -(NoteConstants.SPEED * getDuration(music) * 1000) /
-                TimeConstant.TICK_RATE_MS;
-            const newNode = newNote(
-                0,
-                yEndPosition,
-                music,
-                getDuration(music) >= 1,
-            );
-            const { greenLine, redLine, blueLine, yellowLine } =
-                state.gameFrame;
-            const lines = Array(greenLine, redLine, blueLine, yellowLine);
-            const start = music.start;
-
-            const availableLines = lines.filter((line) => {
-                if (lineBack(line) === undefined) {
-                    return true;
-                }
-                const lastDuration = getDuration(
-                    lineBack(line)!.associatedMusic,
-                );
-                const lastStart = lineBack(line)!.associatedMusic.start;
-
-                if (lineBack(line)!.isStream)
-                    return (
-                        start > lastDuration + lastStart || start < lastStart
-                    );
-                else return start != lastStart;
-            });
-            const availableLine = availableLines.at(
-                music.pitch % availableLines.length,
-            );
-
-            if (availableLine === undefined) {
-                // all 4 lines are full, ignore
-                // can ah like that? idk
-                // const maxTravelTime = ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED * TimeConstant.TICK_RATE_MS
-                // const detached = of(music).pipe(delay(maxTravelTime)).subscribe(playSound(music))
-                return state;
-            }
-
-            // set new line
-            const newLine = insertElement(availableLine.line, newNode);
-
-            // determine which type
-            const lineNames = [
-                "greenLine",
-                "redLine",
-                "blueLine",
-                "yellowLine",
-            ];
-            const lineIndex = lines.indexOf(availableLine);
-            const lineName = lineNames.at(lineIndex);
-
-            if (lineName === undefined)
-                // impossible btw
-                return state;
-
             return {
                 ...state,
-                gameFrame: {
-                    ...state.gameFrame,
-                    [lineName]: updateLine(availableLine, newLine),
-                },
+                gameFrame: addPlayableNode(music, state.gameFrame),
             };
         };
 

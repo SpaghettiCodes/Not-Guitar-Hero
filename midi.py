@@ -29,11 +29,13 @@ allowed_instruments = {
     "Contrabass": "contrabass",
     "Flute": "flute",
     "French Horn": "french-horn",
-    "Acoustic Guitar (nylon)": "guitar-nylon",
+    "Acoustic Guitar (nylon)": "saxophone",
     "Acoustic Guitar (steel)": "guitar-acoustic",
     "Electric Guitar (jazz)": "guitar-electric",
     "Electric Guitar (clean)": "guitar-electric",
     "Electric Guitar (muted)": "guitar-electric",
+    "Overdriven Guitar": "guitar-electric",
+    "Distortion Guitar": "guitar-electric",
     "Reed Organ": "harmonium",
     "Orchestral Harp": "harp",
     "Rock Organ": "organ",
@@ -52,6 +54,9 @@ allowed_instruments = {
     "Trumpet": "trumpet",
     "Tuba": "tuba",
     "Violin": "violin",
+    "String Ensemble 1": "violin",
+    "Lead 2 (sawtooth)": "trumpet",
+    "Choir Aahs" : "trumpet",
     "Xylophone": "xylophone",
 }
 reversed_dict = {v: k for k, v in allowed_instruments.items()}
@@ -224,6 +229,7 @@ def main():
     SkipAll = False
 
     valid_instruments = []
+
     for idx, instrument in enumerate(midi_obj.instruments):
 
         current_notes = sorted(instrument.notes, key=lambda n: (n.start, -n.pitch))
@@ -283,7 +289,7 @@ def main():
 
         mapping[running_idx] = idx
         running_idx += 1
-
+    
     default = count.index(max(count))
 
     questions = [
@@ -300,20 +306,36 @@ def main():
     )
 
     ticks_per_sec = midi_obj.ticks_per_beat * midi_obj.tempo_changes[0].tempo / 60
+    ticks_per_sec_list = [(0, midi_obj.tempo_changes[0].time, midi_obj.tempo_changes[0].tempo)] #time (s), start time (ticks), tempo (ticks/minute)
+    for  i in range(1, len(midi_obj.tempo_changes)):
+        tempoChange = midi_obj.tempo_changes[i]
+        previousTicks = ticks_per_sec_list[i-1]
+        newTicks = (previousTicks[0] + (tempoChange.time - previousTicks[1]) * 60 / previousTicks[2] / midi_obj.ticks_per_beat, tempoChange.time, tempoChange.tempo)
+        ticks_per_sec_list.append(newTicks)
+
+    def findtime(tick):
+        i = 0
+        while ticks_per_sec_list[i][1] <= tick:
+            i += 1
+            if i == len(ticks_per_sec_list):
+                break
+        i -= 1
+        return ticks_per_sec_list[i][0] + (tick - ticks_per_sec_list[i][1]) *60 / ticks_per_sec_list[i][2] /midi_obj.ticks_per_beat
+
     data = []
     for idx, instrument in enumerate(valid_instruments):
         instrument_name = allowed_instruments[GM_INSTRUMENTS[instrument[0].program]]
 
         for i in instrument[0].notes:
-
+            
             data.append(
                 (
                     chosen_idx == idx,
                     instrument_name,
                     i.velocity,
                     i.pitch,
-                    i.start / ticks_per_sec,
-                    i.end / ticks_per_sec,
+                    findtime(i.start),
+                    findtime(i.end),
                 )
             )
 

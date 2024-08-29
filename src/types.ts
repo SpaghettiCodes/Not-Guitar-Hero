@@ -1,7 +1,8 @@
 // types and functions on specific types
 
 import * as Tone from "tone";
-import { NoteConstants, SeedConstants, ViewportConstants } from "./constants";
+import { NoteConstants, SeedConstants, TimeConstant, ViewportConstants } from "./constants";
+import { insertElement } from "./util";
 
 /** User input */
 
@@ -213,6 +214,70 @@ const newGameFrame = (
     yellowLine: yellowLine,
 });
 
+const addPlayableNode = (music: Music, gameFrame: GameFrame): GameFrame => {
+	const yEndPosition =
+		-(NoteConstants.SPEED * getDuration(music) * 1000) /
+		TimeConstant.TICK_RATE_MS;
+	const newNode = newNote(
+		0,
+		yEndPosition,
+		music,
+		getDuration(music) >= 1,
+	);
+	const { greenLine, redLine, blueLine, yellowLine } = gameFrame;
+	const lines = Array(greenLine, redLine, blueLine, yellowLine);
+	const start = music.start;
+
+	const availableLines = lines.filter((line) => {
+		if (lineBack(line) === undefined) {
+			return true;
+		}
+		const lastDuration = getDuration(
+			lineBack(line)!.associatedMusic,
+		);
+		const lastStart = lineBack(line)!.associatedMusic.start;
+
+		if (lineBack(line)!.isStream)
+			return (
+				start > lastDuration + lastStart || start < lastStart
+			);
+		else return start != lastStart;
+	});
+	const availableLine = availableLines.at(
+		music.pitch % availableLines.length,
+	);
+
+	if (availableLine === undefined) {
+		// all 4 lines are full, ignore
+		// can ah like that? idk
+		// const maxTravelTime = ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED * TimeConstant.TICK_RATE_MS
+		// const detached = of(music).pipe(delay(maxTravelTime)).subscribe(playSound(music))
+		return gameFrame;
+	}
+
+	// set new line
+	const newLine = insertElement(availableLine.line, newNode);
+
+	// determine which type
+	const lineNames = [
+		"greenLine",
+		"redLine",
+		"blueLine",
+		"yellowLine",
+	];
+	const lineIndex = lines.indexOf(availableLine);
+	const lineName = lineNames.at(lineIndex);
+
+	if (lineName === undefined)
+		// impossible btw
+		return gameFrame;
+
+	return {
+		...gameFrame,
+		[lineName]: updateLine(availableLine, newLine),
+	};
+}
+
 /** Type to represent data contained in game */
 
 type GameData = Readonly<{
@@ -345,6 +410,7 @@ export {
     tickLine,
     type GameFrame,
     newGameFrame,
+	addPlayableNode,
     type GameData,
     newGameData,
     type State,
