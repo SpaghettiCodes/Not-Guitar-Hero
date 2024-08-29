@@ -2,14 +2,11 @@
 
 import {
     fromEvent,
-    generate,
     map,
     merge,
-    retry,
-    sample,
     scan,
     Subscription,
-    tap,
+	tap,
 } from "rxjs";
 import {
     BarConstants,
@@ -20,6 +17,7 @@ import {
 import {
     initialState,
     LazySequence,
+    nextNumber,
     playSound,
     SampleLibraryType,
     startSound,
@@ -219,8 +217,10 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
         const source$ = merge(tick$, control$, noteStream$)
             .pipe(
                 scan(
-                    (prevState: State, modifier: (prev: State) => State) =>
-                        modifier(prevState),
+                    (prevState: State, modifier: (prev: State) => State) => ({
+                        ...modifier(prevState),
+						rng: nextNumber(prevState.rng)
+					}),
                     initialState,
                 ),
             )

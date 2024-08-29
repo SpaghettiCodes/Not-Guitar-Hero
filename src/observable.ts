@@ -218,7 +218,7 @@ const createKeyboardStream = () => {
                         multiplier: 1,
                         combo: 0,
                     },
-                    music: randomPitch(firstElement.associatedMusic),
+                    music: randomPitch(firstElement.associatedMusic, prev.rng),
                 };
             }
         },

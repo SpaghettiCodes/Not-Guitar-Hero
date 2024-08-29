@@ -72,6 +72,11 @@ const BarConstants = {
     width: NoteConstants.RADIUS * 1.5,
 };
 
+const SeedConstants = {
+	pitchSEED: 42,
+	durationSEED: 24
+}
+
 export {
     ViewportConstants,
     ZonesConstants,
@@ -80,4 +85,5 @@ export {
     TimeConstant,
     NoteConstants,
     BarConstants,
+	SeedConstants
 };

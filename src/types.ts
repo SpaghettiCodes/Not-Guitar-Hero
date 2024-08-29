@@ -1,7 +1,7 @@
 // types and functions on specific types
 
 import * as Tone from "tone";
-import { NoteConstants, ViewportConstants } from "./constants";
+import { NoteConstants, SeedConstants, ViewportConstants } from "./constants";
 
 /** User input */
 
@@ -63,14 +63,14 @@ const startSound = (sound: Music, samples: SampleLibraryType) => {
     );
 };
 
-const randomPitch = (sound: Music): Music => {
+const randomPitch = (sound: Music, rng: RNGFields): Music => {
     return {
         played: sound.played,
         instrument: sound.instrument,
         velocity: 127,
-        pitch: Math.floor(25 + Math.random() * 65),
+        pitch: Math.floor(25 + rng.pitch.value * 65),
         start: 0,
-        end: Math.random() / 2,
+        end: rng.duration.value / 2,
     };
 };
 
@@ -234,7 +234,57 @@ const newGameData = (
     lastNodePlayed: lastNodePlayed,
 });
 
+/** Lazy Evaluation */
+
+interface LazySequence<T> {
+    value: T;
+    next: () => LazySequence<T>;
+}
+
+/** RNG */
+
+/**
+ * A random number generator which provides two pure functions
+ * `hash` and `scaleToRange`.  Call `hash` repeatedly to generate the
+ * sequence of hashes.
+ */
+abstract class RNG {
+    // LCG using GCC's constants
+    private static m = 0x80000000; // 2**31
+    private static a = 1103515245;
+    private static c = 12345;
+
+    /**
+     * Call `hash` repeatedly to generate the sequence of hashes.
+     * @param seed
+     * @returns a hash of the seed
+     */
+    public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
+
+    /**
+     * Takes hash value and scales it to the range [0, 1], who uses [-1, 1] anyways?
+     */
+    public static scale = (hash: number) => hash / (RNG.m - 1);
+}
+
+function RNGGenerator(seed: number): LazySequence<number> {
+	return function _next(seed: number): LazySequence<number> {
+		const newHash = RNG.hash(seed)
+		return {
+			value: RNG.scale(seed),
+			next: () => _next(newHash)
+		}
+	}(seed)
+}
+
 /** Type to represent a State in the game */
+
+type RNGFields = Readonly<{
+	pitch: LazySequence<number>,
+	duration: LazySequence<number>
+}>
+
+const nextNumber = (rngfield: RNGFields) => ({pitch: rngfield.pitch.next(), duration: rngfield.duration.next()})
 
 type State = Readonly<{
     gameEnd: boolean;
@@ -247,6 +297,8 @@ type State = Readonly<{
     music: Music | null;
     startStream: Music | null;
     stopMusic: Music | null;
+
+	rng: RNGFields
 }>;
 
 const initialState: State = {
@@ -258,14 +310,12 @@ const initialState: State = {
     music: null,
     startStream: null,
     stopMusic: null,
+
+	rng: {
+		pitch: RNGGenerator(SeedConstants.pitchSEED),
+		duration: RNGGenerator(SeedConstants.durationSEED)
+	}
 };
-
-/** Lazy Evaluation */
-
-interface LazySequence<T> {
-    value: T;
-    next: () => LazySequence<T>;
-}
 
 export {
     type Key,
@@ -299,6 +349,8 @@ export {
     type GameData,
     newGameData,
     type State,
+	nextNumber,
     initialState,
     type LazySequence,
+	RNGGenerator
 };
