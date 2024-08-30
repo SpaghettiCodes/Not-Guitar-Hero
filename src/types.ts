@@ -15,6 +15,8 @@ type Key = "KeyS" | "KeyD" | "KeyJ" | "KeyK" | "KeyR" | "Escape";
 
 type MouseEventName = "keydown" | "keyup" | "keypress";
 
+/** SampleLibrary type from tonejs-instruments  */
+
 type SampleLibraryType = Readonly<{
     [key: string]: Tone.Sampler;
 }>;
@@ -30,6 +32,7 @@ type Music = Readonly<{
     end: number;
 }>;
 
+// Creates a new Music object
 const newMusic = (
     played: Boolean,
     instrument: string,
@@ -37,7 +40,7 @@ const newMusic = (
     pitch: number,
     start: number,
     end: number,
-) => ({
+): Music => ({
     played: played,
     instrument: instrument,
     velocity: velocity,
@@ -46,8 +49,10 @@ const newMusic = (
     end: end,
 });
 
+// gets the duration of the Music
 const getDuration = (sound: Music): number => sound.end - sound.start;
 
+// plays the sound for {sound.duration} duration
 const playSound = (sound: Music) => (samples: SampleLibraryType) => {
     const volume = sound.velocity / 127;
 
@@ -59,6 +64,7 @@ const playSound = (sound: Music) => (samples: SampleLibraryType) => {
     );
 };
 
+// starts playing the sound, does not stop unless stopSound is called on sound
 const startSound = (sound: Music) => (samples: SampleLibraryType) => {
     const volume = sound.velocity / 127;
 
@@ -69,6 +75,7 @@ const startSound = (sound: Music) => (samples: SampleLibraryType) => {
     );
 };
 
+// generates a random pitch given the instrument
 const randomPitch = (instrument: string | undefined, rng: RNGFields): Music => {
     return {
         played: false,
@@ -80,11 +87,14 @@ const randomPitch = (instrument: string | undefined, rng: RNGFields): Music => {
     };
 };
 
-const stopSound = (sound: Music) => (samples: SampleLibraryType) => {
-    samples[sound.instrument].triggerRelease(
-        Tone.Frequency(sound.pitch, "midi").toNote(),
-    );
-};
+// stops playing a sound. Sound must be played with startSound first
+const stopSound =
+    (sound: Music) =>
+    (samples: SampleLibraryType): undefined => {
+        samples[sound.instrument].triggerRelease(
+            Tone.Frequency(sound.pitch, "midi").toNote(),
+        );
+    };
 
 /** Everything related to Notes displayed on the screen */
 
@@ -97,6 +107,7 @@ type Note = Readonly<{
     clickedBefore: boolean;
 }>;
 
+// creates a new Note object
 const newNote = (
     y: number,
     endY: number,
@@ -113,14 +124,17 @@ const newNote = (
     clickedBefore: clickedBefore,
 });
 
+// creates a copy of the note that is clicked, also sets clicked before flag to true
 const clickNote = (note: Note): Note => ({
     ...note,
     clicked: true,
     clickedBefore: true,
 });
 
+// creates a copy of the node that is not clicked (i.e. note is released)
 const unclickNote = (note: Note): Note => ({ ...note, clicked: false });
 
+// moves the note based on the speed given
 const moveNote = (note: Note, speed: number): Note =>
     note.clicked
         ? {
@@ -138,56 +152,64 @@ const moveNote = (note: Note, speed: number): Note =>
 type lineNames = "greenLine" | "redLine" | "blueLine" | "yellowLine";
 
 type Line = Readonly<{
+	// array of notes for this line
     line: ReadonlyArray<Note>;
+	// is the button corresponding to this line being held?
     hold: boolean;
-    clicked: number;
 }>;
 
+// creates a new List object
 const newList = (
     line: ReadonlyArray<Note> = [],
     hold: boolean = false,
-    clicked: number = 0,
 ): Line => ({
     line: line,
     hold: hold,
-    clicked: clicked,
 });
 
+// returns a copy of {line} with {newLine} replacing the previous line's inner line
 const updateLine = (line: Line, newLine: ReadonlyArray<Note>): Line => ({
     ...line,
     line: newLine,
 });
 
-const lineDown = (line: Line, clicked: number = -1): Line => ({
+// returns a copy of {line} which is held down
+const lineDown = (line: Line): Line => ({
     ...line,
     hold: true,
-    clicked: clicked,
 });
 
-const lineUp = (line: Line, clicked: number = -1): Line => ({
+// returns a copy of {line} which is released
+const lineUp = (line: Line): Line => ({
     ...line,
     hold: false,
-    clicked: clicked,
 });
 
+// accesses the first element in the line
 const lineFront = (line: Line): Note | undefined => line.line.at(0);
 
+// accesses the last element in the line
 const lineBack = (line: Line): Note | undefined => line.line.at(-1);
 
-const lineReplaceNote = (line: Line, newNode: Note, target: Note): Line => {
+// replaces {target} note with {newNoTe} note, and returns a new Line object with the new inner line
+const lineReplaceNote = (line: Line, newNoTe: Note, target: Note): Line => {
     const index = line.line.indexOf(target);
     if (index < 0) return line;
     return updateLine(line, [
         ...line.line.slice(0, index),
-        newNode,
+        newNoTe,
         ...line.line.slice(index + 1),
     ]);
 };
 
+// returns a new Line object with its first note removed
 const lineRemoveFront = (line: Line): Line => {
     return updateLine(line, line.line.slice(1));
 };
 
+// ticks the line
+// 1. removes the first element on the line if it is out of render threshold
+// 2. moves all note in the line by speed
 const tickLine = (line: Line): Line => {
     return updateLine(
         line,
@@ -214,6 +236,7 @@ type GameFrame = Readonly<{
     yellowLine: Line;
 }>;
 
+// creates a new GameFrame object
 const newGameFrame = (
     greenLine: Line = newList(),
     redLine: Line = newList(),
@@ -226,6 +249,21 @@ const newGameFrame = (
     yellowLine: yellowLine,
 });
 
+// ticks the game frame, and returns the updated gameframe
+// by ticking the game frame, we are just calling tickLine to all 4 lines
+const tickGameFrame = (prev: GameFrame): GameFrame =>
+    newGameFrame(
+        tickLine(prev.greenLine),
+        tickLine(prev.redLine),
+        tickLine(prev.blueLine),
+        tickLine(prev.yellowLine),
+    );
+
+// contains the logic to add a new playable note into a gameframe
+// a new playable note is added into the gameframe by
+// 1. filtering available lines
+// 2. choosing one of the lines based on the music's pitch
+// 3. adding the node into the line
 const addPlayableNode = (music: Music, gameFrame: GameFrame): GameFrame => {
     const yEndPosition =
         -(NoteConstants.SPEED * getDuration(music) * 1000) /
@@ -251,24 +289,19 @@ const addPlayableNode = (music: Music, gameFrame: GameFrame): GameFrame => {
     );
 
     if (availableLine === undefined) {
-        // all 4 lines are full, ignore
-        // can ah like that? idk
-        // const maxTravelTime = ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED * TimeConstant.TICK_RATE_MS
-        // const detached = of(music).pipe(delay(maxTravelTime)).subscribe(playSound(music))
+        // all 4 lines are full, sad :(
         return gameFrame;
     }
 
     // set new line
     const newLine = insertElement(availableLine.line, newNode);
 
-    // determine which type
+    // determine which line
     const lineNames = ["greenLine", "redLine", "blueLine", "yellowLine"];
     const lineIndex = lines.indexOf(availableLine);
     const lineName = lineNames.at(lineIndex);
 
-    if (lineName === undefined)
-        // impossible btw
-        return gameFrame;
+    if (lineName === undefined) return gameFrame;
 
     return {
         ...gameFrame,
@@ -276,20 +309,39 @@ const addPlayableNode = (music: Music, gameFrame: GameFrame): GameFrame => {
     };
 };
 
+// check if the game frame is completely empty
+// i.e. no more nodes to play
+const gameFrameEmpty = (prev: GameFrame): boolean =>
+    Array(prev.greenLine, prev.redLine, prev.blueLine, prev.yellowLine).filter(
+        (line) => line.line.length,
+    ).length === 0;
+
 /** Type to represent data contained in game */
 
 type GameData = Readonly<{
+    // represents the score multiplier
     multiplier: number;
+
+    // represents the current score
     score: number;
+
+    // represents the current combo
     combo: number;
 
+    // represents the total number of successful presses
     hitNotes: number;
+
+    // represents the total number of presses + missed notes
     totalNotes: number;
 
+    // represents the final music has been released by the music observable
     lastNodePlayed: boolean;
+
+    // represents the instrument that we are playing as
     playingInstrument: string | undefined;
 }>;
 
+// creates a new GameData object
 const newGameData = (
     multiplier: number,
     score: number,
@@ -337,11 +389,12 @@ abstract class RNG {
     public static hash = (seed: number) => (RNG.a * seed + RNG.c) % RNG.m;
 
     /**
-     * Takes hash value and scales it to the range [0, 1], who uses [-1, 1] anyways?
+     * Takes hash value and scales it to the range [0, 1]
      */
     public static scale = (hash: number) => hash / (RNG.m - 1);
 }
 
+// A Lazy sequence of RNG numbers, generate the next RNG value by calling .next()
 function RNGGenerator(seed: number): LazySequence<number> {
     return (function _next(seed: number): LazySequence<number> {
         const newHash = RNG.hash(seed);
@@ -352,26 +405,33 @@ function RNGGenerator(seed: number): LazySequence<number> {
     })(seed);
 }
 
-/** Type to represent a State in the game */
+/** Type to represent RNG in the game */
 
 type RNGFields = Readonly<{
-    pitch: LazySequence<number>;
-    duration: LazySequence<number>;
+    pitch: LazySequence<number>; // rng value for pitch
+    duration: LazySequence<number>; // rng value for duration
 }>;
 
-const nextNumber = (rngfield: RNGFields) => ({
+// calls next for both pitch and duration rng sequence
+const nextNumber = (rngfield: RNGFields): RNGFields => ({
     pitch: rngfield.pitch.next(),
     duration: rngfield.duration.next(),
 });
 
+/** Type to represent a state in the game */
+
 type State = Readonly<{
+    // true if the game has ended
     gameEnd: boolean;
 
+    // a list of keys that is being pressed
     keyPressed: ReadonlyArray<Key>;
     gameFrame: GameFrame;
 
     data: GameData;
 
+    // a function to play music, if there is nothing to be played, it is set to null
+    // this function is called in subscribe as it is unpure
     music: ((samples: SampleLibraryType) => void) | null;
 
     rng: RNGFields;
@@ -420,7 +480,9 @@ export {
     tickLine,
     type GameFrame,
     newGameFrame,
+    tickGameFrame,
     addPlayableNode,
+    gameFrameEmpty,
     type GameData,
     newGameData,
     type State,

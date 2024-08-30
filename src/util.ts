@@ -1,3 +1,4 @@
+// returns an array with the element removed from it
 function removeElement<T>(
     array: ReadonlyArray<T>,
     element: T,
@@ -10,6 +11,9 @@ function removeElement<T>(
     ];
 }
 
+// inserts an element into an array
+// does not insert the element into the array if it already exist
+// which effectively, makes the array a set (hm)
 function insertElement<T>(
     array: ReadonlyArray<T>,
     element: T,
@@ -20,6 +24,7 @@ function insertElement<T>(
     return array;
 }
 
+// proccess a csv string into an array of array of content
 const processCSV = (
     csv_contents: string,
 ): ReadonlyArray<ReadonlyArray<string>> =>
@@ -28,14 +33,15 @@ const processCSV = (
         .splice(1) // remove csv header
         .map((line) => line.split(","));
 
-// function quickSort
-
+// negates a curried boolean function
+// i.e. puts a ! in front of the result
 const negate =
     <T>(f: (a: T) => (b: T) => boolean) =>
     (a: T) =>
     (b: T): boolean =>
         !f(a)(b);
 
+// returns a sorted version of the array, the original array is remained untouched
 function sorted<T>(
     array: ReadonlyArray<T>,
     comp: (a: T) => (b: T) => boolean,
@@ -49,6 +55,7 @@ function sorted<T>(
     ];
 }
 
+// calculates accuracy based on number of hits
 function calculateAccuracy(hit: number, total: number) {
     if (total === 0) {
         return 100;

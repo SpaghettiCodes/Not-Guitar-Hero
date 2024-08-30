@@ -1,15 +1,16 @@
 // constants
 
+// Constants relating to the viewport
 const ViewportConstants = {
     CANVAS_WIDTH: 200,
     CANVAS_HEIGHT: 400,
     UNRENDER_THRESHOLD: 385,
 } as const;
 
+// Constants relating to detection zones
 const ZonesConstants = {
     GOOD_ZONE: 320,
-    PERFECT_ZONE: 340,
-    END_PERFECT_ZONE: 360,
+    NODE_LOCATION: 350,
     END_GOOD_ZONE: 375,
 };
 
