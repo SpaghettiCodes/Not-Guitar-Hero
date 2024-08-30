@@ -154,6 +154,7 @@ function renderData(s: State): undefined {
     multipler.innerText = String(s.data.multiplier) + "x";
     accuracyText.textContent =
         calculateAccuracy(s.data.hitNotes, s.data.totalNotes).toFixed(4) + "%";
+	// accuracyText.textContent = `${s.data.hitNotes} | ${s.data.totalNotes}`
 }
 
 function renderBallFrame(s: State): undefined {
@@ -220,14 +221,14 @@ const gameOver = document.getElementById("gameOver") as SVGGraphicsElement &
     ) as SVGGraphicsElement & HTMLElement;
 
 function showEndScreen(data: GameData) {
-    console.log("hello?");
     show(gameOver);
     gameOverText.textContent =
         data.hitNotes === data.totalNotes ? "Full Clear" : "Game Over";
 }
 
-function renderGameFrame(s: State, sampleLibary: SampleLibraryType) {
+function renderGameFrame(s: State, sampleLibary: SampleLibraryType, sourceSubscription: Subscription) {
     if (s.gameEnd) {
+		sourceSubscription.unsubscribe()
         showEndScreen(s.data);
     } else {
         hide(gameOver);
@@ -271,7 +272,7 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
                 ),
             )
             .subscribe((s: State) => {
-                renderGameFrame(s, sampleLibary);
+                renderGameFrame(s, sampleLibary, source$);
             });
         return source$;
     };

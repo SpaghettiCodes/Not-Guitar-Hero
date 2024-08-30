@@ -30,7 +30,7 @@ const processCSV = (
 
 // function quickSort
 
-const inverse =
+const negate =
     <T>(f: (a: T) => (b: T) => boolean) =>
     (a: T) =>
     (b: T): boolean =>
@@ -45,7 +45,7 @@ function sorted<T>(
     return [
         ...sorted(array.slice(1).filter(comp(partition)), comp),
         partition,
-        ...sorted(array.slice(1).filter(inverse(comp)(partition)), comp),
+        ...sorted(array.slice(1).filter(negate(comp)(partition)), comp),
     ];
 }
 
