@@ -1,6 +1,14 @@
 /** Rendering (side effects) */
 
-import { fromEvent, map, merge, Observable, scan, Subscription, tap } from "rxjs";
+import {
+    fromEvent,
+    map,
+    merge,
+    Observable,
+    scan,
+    Subscription,
+    tap,
+} from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -8,7 +16,9 @@ import {
     ViewportConstants,
 } from "./constants";
 import {
+    GameData,
     initialState,
+    Key,
     nextNumber,
     Note,
     SampleLibraryType,
@@ -21,7 +31,7 @@ import {
     createTickStream,
     fromKeyPress,
 } from "./observable";
-import { sorted } from "./util";
+import { calculateAccuracy, sorted } from "./util";
 
 /**
  * Renders the current state to the canvas.
@@ -75,42 +85,75 @@ const createSvgElement = (
 
 /** Control Buttons */
 const redControl = document.getElementById("red") as SVGElement & HTMLElement,
-    yellowControl = document.getElementById("yellow") as SVGElement & HTMLElement,
+    yellowControl = document.getElementById("yellow") as SVGElement &
+        HTMLElement,
     blueControl = document.getElementById("blue") as SVGElement & HTMLElement,
     greenControl = document.getElementById("green") as SVGElement & HTMLElement;
 
 /** Falling ball SVG Container */
 const ballSvg = document.getElementById("innerSvg") as SVGElement & HTMLElement;
 
-/** Rendering for game screen */
+/** Rendering for game Controls*/
+const redHelp = document.getElementById("red-text") as SVGElement & HTMLElement,
+    yellowHelp = document.getElementById("yellow-text") as SVGElement &
+        HTMLElement,
+    blueHelp = document.getElementById("blue-text") as SVGElement & HTMLElement,
+    greenHelp = document.getElementById("green-text") as SVGElement &
+        HTMLElement;
 
 function renderControls(s: State): undefined {
     // Add blocks to the main grid canvas
-    s.keyPressed.includes("KeyS")
-        ? greenControl.setAttribute("class", "selected-highlight-green")
-        : greenControl.setAttribute("class", "");
+    const controlArray = Array(
+        greenControl,
+        redControl,
+        blueControl,
+        yellowControl,
+    );
+    const helpArray = Array(greenHelp, redHelp, blueHelp, yellowHelp);
+    const colorNames = Array("green", "red", "blue", "yellow");
 
-    s.keyPressed.includes("KeyD")
-        ? redControl.setAttribute("class", "selected-highlight-red")
-        : redControl.setAttribute("class", "");
+    const highlightControls = (
+        controlDom: HTMLElement,
+        helpDom: HTMLElement,
+        color: string,
+    ): undefined => {
+        controlDom.setAttribute("class", `selected-highlight-${color}`);
+        helpDom.setAttribute("class", `heavy help-highlight-${color}`);
+    };
 
-    s.keyPressed.includes("KeyJ")
-        ? blueControl.setAttribute("class", "selected-highlight-blue")
-        : blueControl.setAttribute("class", "");
+    const unhighlightControls = (
+        controlDom: HTMLElement,
+        helpDom: HTMLElement,
+    ): undefined => {
+        controlDom.setAttribute("class", "");
+        helpDom.setAttribute("class", "heavy");
+    };
 
-    s.keyPressed.includes("KeyK")
-        ? yellowControl.setAttribute("class", "selected-highlight-yellow")
-        : yellowControl.setAttribute("class", "");
+    Array("KeyS", "KeyD", "KeyJ", "KeyK").forEach((value, valueIndex) => {
+        s.keyPressed.includes(value as Key)
+            ? highlightControls(
+                  controlArray.at(valueIndex)!,
+                  helpArray.at(valueIndex)!,
+                  colorNames.at(valueIndex)!,
+              )
+            : unhighlightControls(
+                  controlArray.at(valueIndex)!,
+                  helpArray.at(valueIndex)!,
+              );
+    });
 }
 
 const multipler = document.getElementById("multiplierText") as HTMLElement,
     scoreText = document.getElementById("scoreText") as HTMLElement,
-    comboText = document.getElementById("comboText") as HTMLElement;
+    comboText = document.getElementById("comboText") as HTMLElement,
+    accuracyText = document.getElementById("accuracyText") as HTMLElement;
 
 function renderData(s: State): undefined {
     scoreText.innerText = String(s.data.score);
     comboText.innerText = String(s.data.combo);
     multipler.innerText = String(s.data.multiplier) + "x";
+    accuracyText.textContent =
+        calculateAccuracy(s.data.hitNotes, s.data.totalNotes).toFixed(4) + "%";
 }
 
 function renderBallFrame(s: State): undefined {
@@ -147,19 +190,19 @@ function renderBallFrame(s: State): undefined {
             );
         };
 
-	const renderNode = (color: string, cx: string) => (node: Note) => {
-		drawOnSVG(
-			color,
-			cx,
-		)(Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD));
-		if (node.isStream) {
-			drawBarSVG(color, cx)(
-				Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD),
-				node.endY,
-			);
-			drawOnSVG(color, cx)(node.endY);
-		}
-	}
+    const renderNode = (color: string, cx: string) => (node: Note) => {
+        drawOnSVG(
+            color,
+            cx,
+        )(Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD));
+        if (node.isStream) {
+            drawBarSVG(color, cx)(
+                Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD),
+                node.endY,
+            );
+            drawOnSVG(color, cx)(node.endY);
+        }
+    };
 
     lines.forEach((line, lineIndex) =>
         line.line.forEach(renderNode(color[lineIndex], xLocation[lineIndex])),
@@ -171,11 +214,21 @@ function musicPlayer(s: State, sampleLibary: SampleLibraryType) {
 }
 
 const gameOver = document.getElementById("gameOver") as SVGGraphicsElement &
-    HTMLElement;
+        HTMLElement,
+    gameOverText = document.getElementById(
+        "gameOverText",
+    ) as SVGGraphicsElement & HTMLElement;
+
+function showEndScreen(data: GameData) {
+    console.log("hello?");
+    show(gameOver);
+    gameOverText.textContent =
+        data.hitNotes === data.totalNotes ? "Full Clear" : "Game Over";
+}
 
 function renderGameFrame(s: State, sampleLibary: SampleLibraryType) {
     if (s.gameEnd) {
-        show(gameOver);
+        showEndScreen(s.data);
     } else {
         hide(gameOver);
         renderControls(s);
@@ -198,18 +251,23 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
         svg.setAttribute("height", `${ViewportConstants.CANVAS_HEIGHT}`);
         svg.setAttribute("width", `${ViewportConstants.CANVAS_WIDTH}`);
 
+        const resetState = (prev: State): State => ({
+            ...prev,
+            music: null,
+        });
+
         const control$ = createKeyboardStream(),
-            noteStream$ = createNoteStream(csv_contents),
+            { playingInstrument, noteStream$ } = createNoteStream(csv_contents),
             tick$ = createTickStream();
 
         const source$ = merge(tick$, control$, noteStream$)
             .pipe(
                 scan(
                     (prevState: State, modifier: (prev: State) => State) => ({
-                        ...modifier(prevState),
+                        ...modifier(resetState(prevState)),
                         rng: nextNumber(prevState.rng),
                     }),
-                    initialState,
+                    initialState(playingInstrument),
                 ),
             )
             .subscribe((s: State) => {
@@ -241,28 +299,36 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
                 document.getElementById("backButton") as HTMLElement,
             ),
         ).pipe(
-            map(() => (prev: streamData): streamData => ({
-                ...prev,
-                leave: true,
-                retry: false,
-            })),
+            map(
+                () =>
+                    (prev: streamData): streamData => ({
+                        ...prev,
+                        leave: true,
+                        retry: false,
+                    }),
+            ),
         );
     };
 
-    const retryButton = (csv_contents: string): Observable<(prev: streamData) => streamData> => {
+    const retryButton = (
+        csv_contents: string,
+    ): Observable<(prev: streamData) => streamData> => {
         return merge(
             fromKeyPress("KeyR"),
             createClickStream(
                 document.getElementById("retryButton") as HTMLElement,
             ),
         ).pipe(
-            map(() => (prev: streamData): streamData => ({
-                ...prev,
-                sourceStream: generateGame(csv_contents),
-                prevSourceStream: prev.sourceStream,
-                leave: false,
-                retry: true,
-            })),
+            map(
+                () =>
+                    (prev: streamData): streamData => ({
+                        ...prev,
+                        sourceStream: generateGame(csv_contents),
+                        prevSourceStream: prev.sourceStream,
+                        leave: false,
+                        retry: true,
+                    }),
+            ),
         );
     };
 

@@ -1,7 +1,12 @@
 // types and functions on specific types
 
 import * as Tone from "tone";
-import { NoteConstants, SeedConstants, TimeConstant, ViewportConstants } from "./constants";
+import {
+    NoteConstants,
+    SeedConstants,
+    TimeConstant,
+    ViewportConstants,
+} from "./constants";
 import { insertElement } from "./util";
 
 /** User input */
@@ -64,10 +69,10 @@ const startSound = (sound: Music) => (samples: SampleLibraryType) => {
     );
 };
 
-const randomPitch = (sound: Music, rng: RNGFields): Music => {
+const randomPitch = (instrument: string | undefined, rng: RNGFields): Music => {
     return {
-        played: sound.played,
-        instrument: sound.instrument,
+        played: false,
+        instrument: instrument ? instrument : "piano", // if no notes are playable, by default, play piano
         velocity: 127,
         pitch: Math.floor(25 + rng.pitch.value * 65),
         start: 0,
@@ -89,6 +94,7 @@ type Note = Readonly<{
     associatedMusic: Music;
     isStream: boolean;
     clicked: boolean;
+    clickedBefore: boolean;
 }>;
 
 const newNote = (
@@ -97,15 +103,21 @@ const newNote = (
     associatedMusic: Music,
     isStream: boolean = false,
     clicked: boolean = false,
+    clickedBefore: boolean = false,
 ): Note => ({
     y: y,
     endY: endY,
     associatedMusic: associatedMusic,
     isStream: isStream,
     clicked: clicked,
+    clickedBefore: clickedBefore,
 });
 
-const clickNote = (note: Note): Note => ({ ...note, clicked: true });
+const clickNote = (note: Note): Note => ({
+    ...note,
+    clicked: true,
+    clickedBefore: true,
+});
 
 const unclickNote = (note: Note): Note => ({ ...note, clicked: false });
 
@@ -215,68 +227,54 @@ const newGameFrame = (
 });
 
 const addPlayableNode = (music: Music, gameFrame: GameFrame): GameFrame => {
-	const yEndPosition =
-		-(NoteConstants.SPEED * getDuration(music) * 1000) /
-		TimeConstant.TICK_RATE_MS;
-	const newNode = newNote(
-		0,
-		yEndPosition,
-		music,
-		getDuration(music) >= 1,
-	);
-	const { greenLine, redLine, blueLine, yellowLine } = gameFrame;
-	const lines = Array(greenLine, redLine, blueLine, yellowLine);
-	const start = music.start;
+    const yEndPosition =
+        -(NoteConstants.SPEED * getDuration(music) * 1000) /
+        TimeConstant.TICK_RATE_MS;
+    const newNode = newNote(0, yEndPosition, music, getDuration(music) >= 1);
+    const { greenLine, redLine, blueLine, yellowLine } = gameFrame;
+    const lines = Array(greenLine, redLine, blueLine, yellowLine);
+    const start = music.start;
 
-	const availableLines = lines.filter((line) => {
-		if (lineBack(line) === undefined) {
-			return true;
-		}
-		const lastDuration = getDuration(
-			lineBack(line)!.associatedMusic,
-		);
-		const lastStart = lineBack(line)!.associatedMusic.start;
+    const availableLines = lines.filter((line) => {
+        if (lineBack(line) === undefined) {
+            return true;
+        }
+        const lastDuration = getDuration(lineBack(line)!.associatedMusic);
+        const lastStart = lineBack(line)!.associatedMusic.start;
 
-		if (lineBack(line)!.isStream)
-			return (
-				start > lastDuration + lastStart || start < lastStart
-			);
-		else return start != lastStart;
-	});
-	const availableLine = availableLines.at(
-		music.pitch % availableLines.length,
-	);
+        if (lineBack(line)!.isStream)
+            return start > lastDuration + lastStart || start < lastStart;
+        else return start != lastStart;
+    });
+    const availableLine = availableLines.at(
+        music.pitch % availableLines.length,
+    );
 
-	if (availableLine === undefined) {
-		// all 4 lines are full, ignore
-		// can ah like that? idk
-		// const maxTravelTime = ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED * TimeConstant.TICK_RATE_MS
-		// const detached = of(music).pipe(delay(maxTravelTime)).subscribe(playSound(music))
-		return gameFrame;
-	}
+    if (availableLine === undefined) {
+        // all 4 lines are full, ignore
+        // can ah like that? idk
+        // const maxTravelTime = ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED * TimeConstant.TICK_RATE_MS
+        // const detached = of(music).pipe(delay(maxTravelTime)).subscribe(playSound(music))
+        return gameFrame;
+    }
 
-	// set new line
-	const newLine = insertElement(availableLine.line, newNode);
+    // set new line
+    const newLine = insertElement(availableLine.line, newNode);
 
-	// determine which type
-	const lineNames = [
-		"greenLine",
-		"redLine",
-		"blueLine",
-		"yellowLine",
-	];
-	const lineIndex = lines.indexOf(availableLine);
-	const lineName = lineNames.at(lineIndex);
+    // determine which type
+    const lineNames = ["greenLine", "redLine", "blueLine", "yellowLine"];
+    const lineIndex = lines.indexOf(availableLine);
+    const lineName = lineNames.at(lineIndex);
 
-	if (lineName === undefined)
-		// impossible btw
-		return gameFrame;
+    if (lineName === undefined)
+        // impossible btw
+        return gameFrame;
 
-	return {
-		...gameFrame,
-		[lineName]: updateLine(availableLine, newLine),
-	};
-}
+    return {
+        ...gameFrame,
+        [lineName]: updateLine(availableLine, newLine),
+    };
+};
 
 /** Type to represent data contained in game */
 
@@ -284,19 +282,31 @@ type GameData = Readonly<{
     multiplier: number;
     score: number;
     combo: number;
+
+    hitNotes: number;
+    totalNotes: number;
+
     lastNodePlayed: boolean;
+    playingInstrument: string | undefined;
 }>;
 
 const newGameData = (
     multiplier: number,
     score: number,
     combo: number,
+
     lastNodePlayed: boolean,
-) => ({
+    playingInstrument: string | undefined,
+): GameData => ({
     multiplier: multiplier,
     score: score,
     combo: combo,
+
+    hitNotes: 0,
+    totalNotes: 0,
+
     lastNodePlayed: lastNodePlayed,
+    playingInstrument: playingInstrument,
 });
 
 /** Lazy Evaluation */
@@ -367,11 +377,11 @@ type State = Readonly<{
     rng: RNGFields;
 }>;
 
-const initialState: State = {
+const initialState = (playingInstrument: string | undefined): State => ({
     gameEnd: false,
     keyPressed: [],
     gameFrame: newGameFrame(),
-    data: newGameData(1, 0, 0, false),
+    data: newGameData(1, 0, 0, false, playingInstrument),
 
     music: null,
 
@@ -379,7 +389,7 @@ const initialState: State = {
         pitch: RNGGenerator(SeedConstants.pitchSEED),
         duration: RNGGenerator(SeedConstants.durationSEED),
     },
-};
+});
 
 export {
     type Key,
@@ -410,7 +420,7 @@ export {
     tickLine,
     type GameFrame,
     newGameFrame,
-	addPlayableNode,
+    addPlayableNode,
     type GameData,
     newGameData,
     type State,

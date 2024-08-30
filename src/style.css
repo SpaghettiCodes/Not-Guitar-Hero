@@ -1,7 +1,13 @@
 :root {
-    background-color: rgb(78, 67, 75);
-    padding: 2em;
-    padding-top: 4em;
+    background-image: url("./bg.jpg");
+    background-size: cover;
+    background-position: center;
+    /* background-color: rgb(78, 67, 75); */
+}
+
+.center {
+    width: 100vw;
+    height: 100vh;
 }
 
 BODY,
@@ -13,6 +19,20 @@ H6,
 TH,
 TD {
     font-family: arial, helvetica, sans-serif;
+}
+
+.accuracy {
+    font: bold 15px sans-serif;
+    fill: rgba(0, 0, 0, 0.4);
+}
+
+.heavy {
+    font: bold 20px sans-serif;
+    fill: rgba(0, 0, 0, 0.4);
+}
+
+.clicked {
+    color: white;
 }
 
 .button-div {
@@ -28,13 +48,14 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    margin: 0px;
 }
 
 H1 {
     font-size: 3em;
     font-family: arial, helvetica, sans-serif;
     font-weight: bolder;
-    background-color: rgb(214, 214, 214);
+    background-color: rgba(255, 255, 255, 0.75);
     border-radius: 0.05em;
     padding: 0.1em 0.1em 0.1em 0.1em;
     box-shadow: 0em 0em 0.15em rgb(211, 211, 211);
@@ -81,20 +102,29 @@ H1 {
     border-radius: 5px;
 
     filter: drop-shadow(1px 1px 1px);
-    box-shadow: 0.1rem 0.1rem 1rem rgb(224, 224, 224) inset;
-    background-color: rgb(177, 173, 173);
+    box-shadow: 0.1rem 0.1rem 1rem rgb(224, 224, 224, 0.2) inset;
+    background-color: rgb(255, 255, 255, 0.2);
 
     text-overflow: ellipsis;
     white-space: nowrap;
     transition:
         background-color 0.5s,
-        font-size 0.5s;
+        font-size 0.5s,
+        left 0.1s,
+        min-width 0.1s;
+
+    min-width: 70%;
+
+    position: relative;
+    left: 15%;
 }
 
 .menu_item:hover {
-    background-color: rgb(0, 255, 136);
+    background-color: rgb(255, 255, 255, 0.65);
     font-size: 25px;
     cursor: pointer;
+    min-width: 90%;
+    left: 0%;
 }
 
 .flex {
@@ -112,11 +142,11 @@ H1 {
 }
 
 main {
-    background-color: rgb(238, 238, 238);
+    background-color: rgb(0, 0, 0, 0.15);
     border-radius: 0.25em;
-    box-shadow: 0em 0em 0.5em rgb(20, 20, 20);
+    box-shadow: 0em 0em 0.35em rgb(20, 20, 20);
     flex-wrap: wrap;
-    padding: 1em;
+    padding: 0.5em;
     max-width: 400px;
 }
 
@@ -128,7 +158,6 @@ main {
 
 svg {
     border-radius: 0.1em;
-    border: 5px solid rgb(77, 77, 77);
 }
 
 svg rect {
@@ -137,7 +166,8 @@ svg rect {
 }
 
 #svgCanvas {
-    background-color: rgb(154, 154, 154);
+    background-color: rgb(0, 0, 0, 0.2);
+    border: solid 5px rgba(0, 0, 0, 0.1);
 }
 
 #info {
@@ -203,6 +233,22 @@ svg rect {
 .selected-highlight-yellow {
     filter: drop-shadow(0 0 0.5rem rgb(255, 252, 61));
     stroke: white;
+}
+
+.help-highlight-green {
+    fill: rgb(136, 255, 0);
+}
+
+.help-highlight-red {
+    fill: rgb(255, 41, 41);
+}
+
+.help-highlight-blue {
+    fill: rgb(0, 162, 255);
+}
+
+.help-highlight-yellow {
+    fill: rgb(255, 252, 61);
 }
 
 .hide {

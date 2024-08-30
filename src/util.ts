@@ -20,7 +20,9 @@ function insertElement<T>(
     return array;
 }
 
-const processCSV = (csv_contents: string): ReadonlyArray<ReadonlyArray<string>> =>
+const processCSV = (
+    csv_contents: string,
+): ReadonlyArray<ReadonlyArray<string>> =>
     csv_contents
         .split("\n")
         .splice(1) // remove csv header
@@ -47,4 +49,11 @@ function sorted<T>(
     ];
 }
 
-export { removeElement, insertElement, processCSV, sorted };
+function calculateAccuracy(hit: number, total: number) {
+    if (total === 0) {
+        return 100;
+    }
+    return (hit / total) * 100;
+}
+
+export { removeElement, insertElement, processCSV, sorted, calculateAccuracy };

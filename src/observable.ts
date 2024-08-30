@@ -2,25 +2,25 @@
 
 import {
     delay,
-    endWith,
     filter,
-    first,
     from,
     fromEvent,
     interval,
     map,
     merge,
     mergeMap,
+    mergeWith,
+    Observable,
     of,
     tap,
+    timer,
 } from "rxjs";
 import {
-	addPlayableNode,
+    addPlayableNode,
     clickNote,
     GameFrame,
-    getDuration,
     Key,
-    lineBack,
+    Line,
     lineDown,
     lineFront,
     lineNames,
@@ -30,7 +30,7 @@ import {
     Music,
     newGameFrame,
     newMusic,
-    newNote,
+    Note,
     playSound,
     randomPitch,
     startSound,
@@ -38,12 +38,12 @@ import {
     stopSound,
     tickLine,
     unclickNote,
-    updateLine,
 } from "./types";
 import {
     NoteConstants,
     ScoreConstant,
     TimeConstant,
+    ViewportConstants,
     ZonesConstants,
 } from "./constants";
 import { insertElement, processCSV, removeElement } from "./util";
@@ -52,37 +52,30 @@ const keyPress$ = fromEvent<KeyboardEvent>(document, "keydown");
 
 const keyRelease$ = fromEvent<KeyboardEvent>(document, "keyup");
 
-const fromKeyPress = (keyCode: Key) =>
+const fromKeyPress = (keyCode: Key): Observable<KeyboardEvent> =>
     keyPress$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
-const fromKeyRelease = (keyCode: Key) =>
+const fromKeyRelease = (keyCode: Key): Observable<KeyboardEvent> =>
     keyRelease$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
-const createKeyboardStream = () => {
+const createKeyboardStream = (): Observable<(state: State) => State> => {
     const checkReleaseDetection =
             (key: lineNames) =>
             (prev: State): State => {
                 const lineAssociated = lineUp(prev.gameFrame[key]);
                 const firstElement = lineFront(lineAssociated);
 
-                if (!firstElement)
+                if (
+                    !firstElement ||
+                    !firstElement.isStream ||
+                    !firstElement.clicked
+                )
                     return {
                         ...prev,
                         gameFrame: {
                             ...prev.gameFrame,
                             [key]: lineAssociated,
                         },
-                        music: null,
-                    };
-
-                if (!firstElement.isStream || !firstElement.clicked)
-                    return {
-                        ...prev,
-                        gameFrame: {
-                            ...prev.gameFrame,
-                            [key]: lineAssociated,
-                        },
-                        music: null,
                     };
 
                 // stream is released
@@ -115,6 +108,8 @@ const createKeyboardStream = () => {
                                 prev.data.score +
                                 ScoreConstant.BASE_SCORE * newMultiplier,
                             combo: newCombo,
+                            hitNotes: prev.data.hitNotes + 1,
+                            totalNotes: prev.data.totalNotes + 1,
                         },
                         music: stopSound(firstElement.associatedMusic),
                     };
@@ -134,6 +129,7 @@ const createKeyboardStream = () => {
                             ...prev.data,
                             multiplier: 1,
                             combo: 0,
+                            totalNotes: prev.data.totalNotes + 1,
                         },
                         music: stopSound(firstElement.associatedMusic),
                     };
@@ -145,37 +141,50 @@ const createKeyboardStream = () => {
                 const lineAssociated = lineDown(prev.gameFrame[key]);
                 const firstElement = lineFront(lineAssociated);
 
-                if (!firstElement)
+                if (!firstElement || firstElement.clickedBefore)
                     return {
                         ...prev,
+                        data: {
+                            ...prev.data,
+                            multiplier: 1,
+                            combo: 0,
+                            totalNotes: prev.data.totalNotes + 1,
+                        },
                         gameFrame: {
                             ...prev.gameFrame,
                             [key]: lineAssociated,
                         },
-                        music: null,
+                        music: playSound(
+                            randomPitch(prev.data.playingInstrument, prev.rng),
+                        ),
                     };
 
                 const elementY = firstElement.y;
                 const isStream = firstElement.isStream;
 
-				// outside of detection zone, play random music
+                // outside of detection zone, play random music
                 if (
                     !(
                         elementY >= ZonesConstants.GOOD_ZONE &&
                         elementY <= ZonesConstants.END_GOOD_ZONE
                     )
                 )
-					return {
-						...prev,
-						data: {
-							...prev.data,
-							multiplier: 1,
-							combo: 0,
-						},
-						music: playSound(
-							randomPitch(firstElement.associatedMusic, prev.rng),
-						),
-					};
+                    return {
+                        ...prev,
+                        data: {
+                            ...prev.data,
+                            multiplier: 1,
+                            combo: 0,
+                            totalNotes: prev.data.totalNotes + 1,
+                        },
+                        gameFrame: {
+                            ...prev.gameFrame,
+                            [key]: lineAssociated,
+                        },
+                        music: playSound(
+                            randomPitch(prev.data.playingInstrument, prev.rng),
+                        ),
+                    };
 
                 // remove node
 
@@ -183,34 +192,38 @@ const createKeyboardStream = () => {
                 const newMultiplier =
                     1 + Number((Math.floor(newCombo / 10) * 0.2).toFixed(1));
 
-				const newScores = {
-					multiplier: newMultiplier,
-					score:
-						prev.data.score +
-						ScoreConstant.BASE_SCORE * newMultiplier,
-					combo: newCombo,
-				};
+                const newScores = {
+                    multiplier: newMultiplier,
+                    score:
+                        prev.data.score +
+                        ScoreConstant.BASE_SCORE * newMultiplier,
+                    combo: newCombo,
+                };
 
-				return {
-					...prev,
-					gameFrame: {
-						...prev.gameFrame,
-						[key]: isStream
-							? lineReplaceNote(
-									lineAssociated,
-									clickNote(firstElement),
-									firstElement,
-								)
-							: lineRemoveFront(lineAssociated),
-					},
-					data: {
-						...prev.data,
-						...(isStream ? {} : newScores),
-					},
-					music: isStream
-						? startSound(firstElement.associatedMusic)
-						: playSound(firstElement.associatedMusic),
-				};
+                return {
+                    ...prev,
+                    gameFrame: {
+                        ...prev.gameFrame,
+                        [key]: isStream
+                            ? lineReplaceNote(
+                                  lineAssociated,
+                                  clickNote(firstElement),
+                                  firstElement,
+                              )
+                            : lineRemoveFront(lineAssociated),
+                    },
+                    data: {
+                        ...prev.data,
+                        ...(isStream ? {} : newScores),
+                        ...{
+                            hitNotes: prev.data.hitNotes + 1,
+                            totalNotes: prev.data.totalNotes + 1,
+                        },
+                    },
+                    music: isStream
+                        ? startSound(firstElement.associatedMusic)
+                        : playSound(firstElement.associatedMusic),
+                };
             },
         controlObservable = (
             keyCode: Key,
@@ -258,18 +271,33 @@ const createKeyboardStream = () => {
     );
 };
 
-const createNoteStream = (csv_contents: string) => {
-    const processedCSV = processCSV(csv_contents).filter(
-            (data) => data.length === 6,
-        ),
+const createNoteStream = (
+    csv_contents: string,
+): Readonly<{
+    playingInstrument: string | undefined;
+    noteStream$: Observable<(state: State) => State>;
+}> => {
+    const processedCSV = processCSV(csv_contents)
+            .filter((data) => data.length === 6)
+            .map((data) =>
+                newMusic(
+                    String(data[0]).toLowerCase() === "true",
+                    data[1],
+                    Number(data[2]),
+                    Number(data[3]),
+                    Number(data[4]),
+                    Number(data[5]),
+                ),
+            ),
         maxTravelTime =
             (ZonesConstants.PERFECT_ZONE / NoteConstants.SPEED) *
             TimeConstant.TICK_RATE_MS,
-        firstNoteStart = Number(processedCSV.at(0)?.at(4)),
+        firstNoteStart = Number(processedCSV.at(0)?.start),
         delayBeginAmt = Math.max(
             TimeConstant.DELAY_SEC * 1000,
             maxTravelTime - firstNoteStart,
         ),
+        maxDuration = Math.max(...processedCSV.map((x) => x.end)),
         appendPlayableNode = (music: Music, state: State): State => {
             return {
                 ...state,
@@ -277,48 +305,53 @@ const createNoteStream = (csv_contents: string) => {
             };
         };
 
-    return from(processedCSV).pipe(
-        map((data) =>
-            newMusic(
-                String(data[0]).toLowerCase() === "true",
-                data[1],
-                Number(data[2]),
-                Number(data[3]),
-                Number(data[4]),
-                Number(data[5]),
-            ),
-        ),
-        mergeMap((value) =>
-            of(value).pipe(
-                value.played
-                    ? delay(value.start * 1000 - maxTravelTime + delayBeginAmt)
-                    : delay(value.start * 1000 + delayBeginAmt),
-                map(
-                    (value) =>
-                        (prev: State): State =>
-                            value.played
-                                ? appendPlayableNode(value, prev)
-                                : {
-                                      ...prev,
-                                      data: {
-                                          ...prev.data,
+    return {
+        playingInstrument: processedCSV.find((v) => v.played === true)
+            ?.instrument,
+        noteStream$: from(processedCSV).pipe(
+            mergeMap((value) =>
+                of(value).pipe(
+                    value.played
+                        ? delay(
+                              value.start * 1000 -
+                                  maxTravelTime +
+                                  delayBeginAmt,
+                          )
+                        : delay(value.start * 1000 + delayBeginAmt),
+                    map(
+                        (value) =>
+                            (prev: State): State =>
+                                value.played
+                                    ? appendPlayableNode(value, prev)
+                                    : {
+                                          ...prev,
+                                          data: {
+                                              ...prev.data,
+                                          },
+                                          music: playSound(value),
                                       },
-                                      music: playSound(value),
-                                  },
+                    ),
+                ),
+            ),
+            mergeWith(
+                timer((maxDuration + TimeConstant.END_DELAY_SEC) * 1000).pipe(
+                    map(
+                        () =>
+                            (prev: State): State => ({
+                                ...prev,
+                                data: {
+                                    ...prev.data,
+                                    lastNodePlayed: true,
+                                },
+                            }),
+                    ),
                 ),
             ),
         ),
-        endWith((prev: State): State => ({
-            ...prev,
-            data: {
-                ...prev.data,
-                lastNodePlayed: true,
-            },
-        })),
-    );
+    };
 };
 
-const createTickStream = () => {
+const createTickStream = (): Observable<(state: State) => State> => {
     /**
      * Updates the state by proceeding with one time step.
      *
@@ -326,23 +359,32 @@ const createTickStream = () => {
      * @returns Updated state
      */
 
-    const missedLine = (prev: GameFrame) =>
+    const missedNotes = (prev: GameFrame) =>
             Array(
                 prev.greenLine,
                 prev.redLine,
                 prev.blueLine,
                 prev.yellowLine,
             ).reduce(
-                (missed, line) =>
-                    missed +
-                    (lineFront(line)
-                        ? Number(
-                              lineFront(line)!.y >
-                                  ZonesConstants.END_GOOD_ZONE,
-                          )
-                        : 0),
-                0,
+                (
+                    missed: ReadonlyArray<Note>,
+                    line: Line,
+                ): ReadonlyArray<Note> => {
+                    const front = lineFront(line);
+                    if (front === undefined) return missed;
+
+                    if (front.isStream)
+                        return front.endY > ViewportConstants.UNRENDER_THRESHOLD
+                            ? missed.concat(front)
+                            : missed;
+                    return front.y > ViewportConstants.UNRENDER_THRESHOLD
+                        ? missed.concat(front)
+                        : missed;
+                },
+                [],
             ),
+        missedNotesCount = (prev: GameFrame): number =>
+            missedNotes(prev).length,
         gameFrameEmpty = (prev: GameFrame) =>
             Array(
                 prev.greenLine,
@@ -358,7 +400,7 @@ const createTickStream = () => {
                 tickLine(prev.yellowLine),
             ),
         tick = (prev: State): State => {
-            const missedCount = missedLine(prev.gameFrame);
+            const missedCount = missedNotesCount(prev.gameFrame);
             return {
                 ...prev,
                 gameEnd:
@@ -369,9 +411,8 @@ const createTickStream = () => {
                     ...prev.data,
                     multiplier: missedCount ? 1 : prev.data.multiplier,
                     combo: missedCount ? 0 : prev.data.combo,
+                    totalNotes: prev.data.totalNotes + missedCount,
                 },
-
-                music: null,
             };
         };
 
