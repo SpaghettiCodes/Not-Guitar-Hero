@@ -1,6 +1,6 @@
 /** Rendering (side effects) */
 
-import { fromEvent, map, merge, scan, Subscription, tap } from "rxjs";
+import { fromEvent, map, merge, Observable, scan, Subscription, tap } from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -9,13 +9,10 @@ import {
 } from "./constants";
 import {
     initialState,
-    LazySequence,
     nextNumber,
-    playSound,
+    Note,
     SampleLibraryType,
-    startSound,
     State,
-    stopSound,
 } from "./types";
 import {
     createClickStream,
@@ -70,7 +67,7 @@ const createSvgElement = (
     namespace: string | null,
     name: string,
     props: Record<string, string> = {},
-) => {
+): SVGElement => {
     const elem = document.createElementNS(namespace, name) as SVGElement;
     Object.entries(props).forEach(([k, v]) => elem.setAttribute(k, v));
     return elem;
@@ -78,8 +75,7 @@ const createSvgElement = (
 
 /** Control Buttons */
 const redControl = document.getElementById("red") as SVGElement & HTMLElement,
-    yellowControl = document.getElementById("yellow") as SVGElement &
-        HTMLElement,
+    yellowControl = document.getElementById("yellow") as SVGElement & HTMLElement,
     blueControl = document.getElementById("blue") as SVGElement & HTMLElement,
     greenControl = document.getElementById("green") as SVGElement & HTMLElement;
 
@@ -88,7 +84,7 @@ const ballSvg = document.getElementById("innerSvg") as SVGElement & HTMLElement;
 
 /** Rendering for game screen */
 
-function renderControls(s: State) {
+function renderControls(s: State): undefined {
     // Add blocks to the main grid canvas
     s.keyPressed.includes("KeyS")
         ? greenControl.setAttribute("class", "selected-highlight-green")
@@ -111,16 +107,14 @@ const multipler = document.getElementById("multiplierText") as HTMLElement,
     scoreText = document.getElementById("scoreText") as HTMLElement,
     comboText = document.getElementById("comboText") as HTMLElement;
 
-function renderData(s: State) {
+function renderData(s: State): undefined {
     scoreText.innerText = String(s.data.score);
     comboText.innerText = String(s.data.combo);
     multipler.innerText = String(s.data.multiplier) + "x";
 }
 
-function renderBallFrame(s: State) {
+function renderBallFrame(s: State): undefined {
     ballSvg.innerHTML = "";
-    // const childrens = [...ballSvg.childNodes]
-	// childrens.forEach(child => child.remove())
 
     const { greenLine, redLine, blueLine, yellowLine } = s.gameFrame;
     const xLocation = ["20%", "40%", "60%", "80%"];
@@ -153,20 +147,22 @@ function renderBallFrame(s: State) {
             );
         };
 
+	const renderNode = (color: string, cx: string) => (node: Note) => {
+		drawOnSVG(
+			color,
+			cx,
+		)(Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD));
+		if (node.isStream) {
+			drawBarSVG(color, cx)(
+				Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD),
+				node.endY,
+			);
+			drawOnSVG(color, cx)(node.endY);
+		}
+	}
+
     lines.forEach((line, lineIndex) =>
-        line.line.forEach((node) => {
-            drawOnSVG(
-                color[lineIndex],
-                xLocation[lineIndex],
-            )(Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD));
-            if (node.isStream) {
-                drawBarSVG(color[lineIndex], xLocation[lineIndex])(
-                    Math.min(node.y, ViewportConstants.UNRENDER_THRESHOLD),
-                    node.endY,
-                );
-                drawOnSVG(color[lineIndex], xLocation[lineIndex])(node.endY);
-            }
-        }),
+        line.line.forEach(renderNode(color[lineIndex], xLocation[lineIndex])),
     );
 }
 
@@ -196,7 +192,7 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
     const { protocol, hostname, port } = new URL(import.meta.url);
     const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
 
-    const generateGame = (csv_contents: string) => {
+    const generateGame = (csv_contents: string): Subscription => {
         showGame();
 
         svg.setAttribute("height", `${ViewportConstants.CANVAS_HEIGHT}`);
@@ -238,30 +234,29 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
         prevSourceStream: null,
     });
 
-    const backButton = () => {
-        const button$ = merge(
+    const backButton = (): Observable<(prev: streamData) => streamData> => {
+        return merge(
             fromKeyPress("Escape"),
             createClickStream(
                 document.getElementById("backButton") as HTMLElement,
             ),
         ).pipe(
-            map(() => (prev: streamData) => ({
+            map(() => (prev: streamData): streamData => ({
                 ...prev,
                 leave: true,
                 retry: false,
             })),
         );
-        return button$;
     };
 
-    const retryButton = (csv_contents: string) => {
-        const retry$ = merge(
+    const retryButton = (csv_contents: string): Observable<(prev: streamData) => streamData> => {
+        return merge(
             fromKeyPress("KeyR"),
             createClickStream(
                 document.getElementById("retryButton") as HTMLElement,
             ),
         ).pipe(
-            map(() => (prev: streamData) => ({
+            map(() => (prev: streamData): streamData => ({
                 ...prev,
                 sourceStream: generateGame(csv_contents),
                 prevSourceStream: prev.sourceStream,
@@ -269,10 +264,9 @@ function renderGame(songName: string, sampleLibary: SampleLibraryType) {
                 retry: true,
             })),
         );
-        return retry$;
     };
 
-    const linkButtons = (csv_contents: string) => {
+    const linkButtons = (csv_contents: string): undefined => {
         const stream = merge(retryButton(csv_contents), backButton())
             .pipe(
                 scan(

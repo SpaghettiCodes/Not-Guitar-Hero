@@ -57,6 +57,15 @@ const SONG_LIST = [
 	"LowAsDirt",
 	"ComparedChild",
 	"BusToAnotherWorld",
+	"supadopa",
+	'starryJet',
+	'hopeIsTheThingWithFeathers',
+	'Tempestissimo',
+	'rideOnTime',
+	'aoNoSumika',
+	'aoNoWaltz-bg',
+	'aoNoWaltz',
+	'DORAEEEMONIII'
 ];
 
 const ScoreConstant = {

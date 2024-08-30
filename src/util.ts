@@ -20,7 +20,7 @@ function insertElement<T>(
     return array;
 }
 
-const processCSV = (csv_contents: string) =>
+const processCSV = (csv_contents: string): ReadonlyArray<ReadonlyArray<string>> =>
     csv_contents
         .split("\n")
         .splice(1) // remove csv header
@@ -31,7 +31,7 @@ const processCSV = (csv_contents: string) =>
 const inverse =
     <T>(f: (a: T) => (b: T) => boolean) =>
     (a: T) =>
-    (b: T) =>
+    (b: T): boolean =>
         !f(a)(b);
 
 function sorted<T>(
