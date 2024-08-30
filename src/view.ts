@@ -220,6 +220,7 @@ function renderBallFrame(s: State): undefined {
 // plays the music
 function musicPlayer(s: State, sampleLibary: SampleLibraryType) {
     if (s.music !== null) s.music(sampleLibary);
+	if (s.outofboundmusic.length !== 0) s.outofboundmusic.forEach(musicFunc => musicFunc(sampleLibary))
 }
 
 // game over elements
@@ -277,6 +278,7 @@ function renderGame(
         const resetState = (prev: State): State => ({
             ...prev,
             music: null,
+			outofboundmusic: []
         });
 
         const control$ = createKeyboardStream(),

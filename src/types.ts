@@ -422,17 +422,19 @@ const nextNumber = (rngfield: RNGFields): RNGFields => ({
 
 type State = Readonly<{
     // true if the game has ended
-    gameEnd: boolean;
+    gameEnd: boolean,
 
     // a list of keys that is being pressed
-    keyPressed: ReadonlyArray<Key>;
-    gameFrame: GameFrame;
+    keyPressed: ReadonlyArray<Key>,
+    gameFrame: GameFrame,
 
-    data: GameData;
+    data: GameData,
 
     // a function to play music, if there is nothing to be played, it is set to null
     // this function is called in subscribe as it is unpure
-    music: ((samples: SampleLibraryType) => void) | null;
+    music: ((samples: SampleLibraryType) => void) | null,
+
+	outofboundmusic: ReadonlyArray<(sample: SampleLibraryType) => void>,
 
     rng: RNGFields;
 }>;
@@ -444,6 +446,7 @@ const initialState = (playingInstrument: string | undefined): State => ({
     data: newGameData(1, 0, 0, false, playingInstrument),
 
     music: null,
+	outofboundmusic: [],
 
     rng: {
         pitch: RNGGenerator(SeedConstants.pitchSEED),

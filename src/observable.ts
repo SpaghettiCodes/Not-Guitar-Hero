@@ -53,18 +53,19 @@ const keyPress$ = fromEvent<KeyboardEvent>(document, "keydown");
 // Observable that detects if a key is released (keyup)
 const keyRelease$ = fromEvent<KeyboardEvent>(document, "keyup");
 
-// From keyPress$ observable, filters out specific keyCode
+// From keyPress$ observable, extract out KeyboardEvent associated to the key code
 // also ensures no repetition of KeyBoardEvent emission (key held down)
 const fromKeyPress = (keyCode: Key): Observable<KeyboardEvent> =>
     keyPress$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
-// from keyRelease$ observable, filters out specific keyCode
+// from keyRelease$ observable, extract out KeyboardEvent associated to the key code
 const fromKeyRelease = (keyCode: Key): Observable<KeyboardEvent> =>
     keyRelease$.pipe(filter(({ code, repeat }) => code === keyCode && !repeat));
 
 // creates the Keyboard Observables
 const createKeyboardStream = (): Observable<(state: State) => State> => {
-    // Function that takes in a specific line name and performs mouse release logic on that line
+    // Function that takes in a specific line name and 
+	// returns a function that performs mouse release logic on that line
     const checkReleaseDetection =
             (key: lineNames) =>
             (prev: State): State => {
@@ -142,6 +143,8 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
                     };
                 }
             },
+		// Function that takes in a specific line name and 
+		// returns a function that performs mouse click logic on that line
         checkHitDetection =
             (key: lineNames) =>
             (prev: State): State => {
@@ -419,6 +422,8 @@ const createTickStream = (): Observable<(state: State) => State> => {
                 gameEnd:
                     prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
                 gameFrame: tickGameFrame(prev.gameFrame),
+
+				outofboundmusic: missedNotes(prev.gameFrame).filter(x => x.isStream).map(x => stopSound(x.associatedMusic)),
 
                 data: {
                     ...prev.data,
