@@ -64,8 +64,8 @@ const fromKeyRelease = (keyCode: Key): Observable<KeyboardEvent> =>
 
 // creates the Keyboard Observables
 const createKeyboardStream = (): Observable<(state: State) => State> => {
-    // Function that takes in a specific line name and 
-	// returns a function that performs mouse release logic on that line
+    // Function that takes in a specific line name and
+    // returns a function that performs mouse release logic on that line
     const checkReleaseDetection =
             (key: lineNames) =>
             (prev: State): State => {
@@ -143,8 +143,8 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
                     };
                 }
             },
-		// Function that takes in a specific line name and 
-		// returns a function that performs mouse click logic on that line
+        // Function that takes in a specific line name and
+        // returns a function that performs mouse click logic on that line
         checkHitDetection =
             (key: lineNames) =>
             (prev: State): State => {
@@ -244,26 +244,26 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
             const keyRelease$ = fromKeyRelease(keyCode).pipe(
                 map(
                     () =>
-                        (state: State): State => ({
+                        (state: State): State => state.gameEnd ? state : {
                             ...onkeyRelease(state),
                             keyPressed: removeElement(
                                 state.keyPressed,
                                 keyCode,
                             ),
-                        }),
+                        },
                 ),
             );
 
             const keyPress$ = fromKeyPress(keyCode).pipe(
                 map(
                     () =>
-                        (state: State): State => ({
+                        (state: State): State => state.gameEnd ? state : {
                             ...onkeyPress(state),
                             keyPressed: insertElement(
                                 state.keyPressed,
                                 keyCode,
                             ),
-                        }),
+                        },
                 ),
             );
 
@@ -305,15 +305,16 @@ const createNoteStream = (
 }> => {
     const processedCSV = processCSV(csv_contents)
             .filter((data) => data.length === 6)
-            .map((data): Music =>
-                newMusic(
-                    String(data[0]).toLowerCase() === "true",
-                    data[1],
-                    Number(data[2]),
-                    Number(data[3]),
-                    Number(data[4]),
-                    Number(data[5]),
-                ),
+            .map(
+                (data): Music =>
+                    newMusic(
+                        String(data[0]).toLowerCase() === "true",
+                        data[1],
+                        Number(data[2]),
+                        Number(data[3]),
+                        Number(data[4]),
+                        Number(data[5]),
+                    ),
             ),
         maxTravelTime =
             (ZonesConstants.NODE_LOCATION / NoteConstants.SPEED) *
@@ -325,8 +326,8 @@ const createNoteStream = (
         ),
         maxDuration = Math.max(...processedCSV.map((x) => x.end)),
         // appends a playable node to state
-        // calls addPlayableNode for gameframe and 
-		// returns a new State with the new Gameframe
+        // calls addPlayableNode for gameframe and
+        // returns a new State with the new Gameframe
         appendPlayableNode = (music: Music, state: State): State => {
             return {
                 ...state,
@@ -419,11 +420,15 @@ const createTickStream = (): Observable<(state: State) => State> => {
             const missedCount = missedNotesCount(prev.gameFrame);
             return {
                 ...prev,
+				// if the last note is played, and the game frame is completely empty
+				// we can safely end the game
                 gameEnd:
                     prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
                 gameFrame: tickGameFrame(prev.gameFrame),
 
-				outofboundmusic: missedNotes(prev.gameFrame).filter(x => x.isStream).map(x => stopSound(x.associatedMusic)),
+                outofboundmusic: missedNotes(prev.gameFrame)
+                    .filter((x) => x.isStream)
+                    .map((x) => stopSound(x.associatedMusic)),
 
                 data: {
                     ...prev.data,
@@ -442,10 +447,50 @@ function createClickStream(buttonElement: HTMLElement) {
     return fromEvent(buttonElement, "click");
 }
 
+// creates a Observable that serves as a 'back button' listener.
+const backButton = (): Observable<(state: State) => State> =>
+    merge(
+        fromKeyPress("Escape"),
+        createClickStream(document.getElementById("backButton") as HTMLElement),
+    ).pipe(
+        map(
+            () =>
+                (prev: State): State => ({
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        leave: true,
+                    },
+                }),
+        ),
+    );
+
+// creates a Observable that serves as a 'retry button' listener
+const retryButton = (): Observable<(state: State) => State> =>
+    merge(
+        fromKeyPress("KeyR"),
+        createClickStream(
+            document.getElementById("retryButton") as HTMLElement,
+        ),
+    ).pipe(
+        map(
+            () =>
+                (prev: State): State => ({
+                    ...prev,
+                    data: {
+                        ...prev.data,
+                        retry: true,
+                    },
+                }),
+        ),
+    );
+
 export {
     createKeyboardStream,
     createNoteStream,
     createTickStream,
     createClickStream,
     fromKeyPress,
+    backButton,
+    retryButton,
 };

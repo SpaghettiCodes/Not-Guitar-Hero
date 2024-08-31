@@ -8,6 +8,7 @@ import {
     ViewportConstants,
 } from "./constants";
 import { insertElement } from "./util";
+import { Subscription } from "rxjs";
 
 /** User input */
 
@@ -152,9 +153,9 @@ const moveNote = (note: Note, speed: number): Note =>
 type lineNames = "greenLine" | "redLine" | "blueLine" | "yellowLine";
 
 type Line = Readonly<{
-	// array of notes for this line
+    // array of notes for this line
     line: ReadonlyArray<Note>;
-	// is the button corresponding to this line being held?
+    // is the button corresponding to this line being held?
     hold: boolean;
 }>;
 
@@ -339,6 +340,9 @@ type GameData = Readonly<{
 
     // represents the instrument that we are playing as
     playingInstrument: string | undefined;
+
+    leave: boolean;
+    retry: boolean;
 }>;
 
 // creates a new GameData object
@@ -349,6 +353,9 @@ const newGameData = (
 
     lastNodePlayed: boolean,
     playingInstrument: string | undefined,
+
+    leave: boolean = false,
+    retry: boolean = false,
 ): GameData => ({
     multiplier: multiplier,
     score: score,
@@ -359,6 +366,9 @@ const newGameData = (
 
     lastNodePlayed: lastNodePlayed,
     playingInstrument: playingInstrument,
+
+    leave: leave,
+    retry: retry,
 });
 
 /** Lazy Evaluation */
@@ -374,6 +384,8 @@ interface LazySequence<T> {
  * A random number generator which provides two pure functions
  * `hash` and `scaleToRange`.  Call `hash` repeatedly to generate the
  * sequence of hashes.
+ * 
+ * RNG class is sourced from 2102 Applied Class Exercise Week 4
  */
 abstract class RNG {
     // LCG using GCC's constants
@@ -422,23 +434,27 @@ const nextNumber = (rngfield: RNGFields): RNGFields => ({
 
 type State = Readonly<{
     // true if the game has ended
-    gameEnd: boolean,
+    gameEnd: boolean;
 
     // a list of keys that is being pressed
-    keyPressed: ReadonlyArray<Key>,
-    gameFrame: GameFrame,
+    keyPressed: ReadonlyArray<Key>;
+    gameFrame: GameFrame;
 
-    data: GameData,
+    data: GameData;
 
     // a function to play music, if there is nothing to be played, it is set to null
     // this function is called in subscribe as it is unpure
-    music: ((samples: SampleLibraryType) => void) | null,
+    music: ((samples: SampleLibraryType) => void) | null;
 
-	outofboundmusic: ReadonlyArray<(sample: SampleLibraryType) => void>,
+    outofboundmusic: ReadonlyArray<(sample: SampleLibraryType) => void>;
 
     rng: RNGFields;
 }>;
 
+/**
+ *  Creates the initial state, accepts a playing instrument value, which represents
+ * the instrument that the player is playing as
+ */
 const initialState = (playingInstrument: string | undefined): State => ({
     gameEnd: false,
     keyPressed: [],
@@ -446,12 +462,23 @@ const initialState = (playingInstrument: string | undefined): State => ({
     data: newGameData(1, 0, 0, false, playingInstrument),
 
     music: null,
-	outofboundmusic: [],
+    outofboundmusic: [],
 
     rng: {
         pitch: RNGGenerator(SeedConstants.pitchSEED),
         duration: RNGGenerator(SeedConstants.durationSEED),
     },
+});
+
+const resetState = (prev: State): State => ({
+    ...prev,
+    data: {
+        ...prev.data,
+        leave: false,
+        retry: false,
+    },
+    music: null,
+    outofboundmusic: [],
 });
 
 export {
@@ -491,6 +518,7 @@ export {
     type State,
     nextNumber,
     initialState,
+    resetState,
     type LazySequence,
     RNGGenerator,
 };

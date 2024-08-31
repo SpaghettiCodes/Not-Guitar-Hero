@@ -89,9 +89,7 @@ const TimeConstant = {
 const NoteConstants = {
     RADIUS: 0.07 * ViewportConstants.CANVAS_WIDTH,
     TAIL_WIDTH: 10,
-    // SPEED: 7
     SPEED: 4.5, // xunit / tick
-    // SPEED: 2
 };
 
 const BarConstants = {

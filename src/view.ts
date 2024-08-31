@@ -1,13 +1,6 @@
 /** Rendering (side effects) */
 
-import {
-    fromEvent,
-    map,
-    merge,
-    Observable,
-    scan,
-    Subscription,
-} from "rxjs";
+import { fromEvent, map, merge, Observable, scan, Subscription } from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -20,15 +13,16 @@ import {
     Key,
     nextNumber,
     Note,
+    resetState,
     SampleLibraryType,
     State,
 } from "./types";
 import {
-    createClickStream,
+    backButton,
     createKeyboardStream,
     createNoteStream,
     createTickStream,
-    fromKeyPress,
+    retryButton,
 } from "./observable";
 import { calculateAccuracy, sorted } from "./util";
 
@@ -220,7 +214,8 @@ function renderBallFrame(s: State): undefined {
 // plays the music
 function musicPlayer(s: State, sampleLibary: SampleLibraryType) {
     if (s.music !== null) s.music(sampleLibary);
-	if (s.outofboundmusic.length !== 0) s.outofboundmusic.forEach(musicFunc => musicFunc(sampleLibary))
+    if (s.outofboundmusic.length !== 0)
+        s.outofboundmusic.forEach((musicFunc) => musicFunc(sampleLibary));
 }
 
 // game over elements
@@ -241,11 +236,9 @@ function showEndScreen(data: GameData) {
 // sourceSubscription is needed to properly unsubscribe from the Subsription when the game ends
 function renderGameFrame(
     s: State,
-    sampleLibary: SampleLibraryType,
-    sourceSubscription: Subscription,
+    sampleLibary: SampleLibraryType
 ) {
     if (s.gameEnd) {
-        sourceSubscription.unsubscribe();
         showEndScreen(s.data);
     } else {
         hide(gameOver);
@@ -268,24 +261,25 @@ function renderGame(
     const { protocol, hostname, port } = new URL(import.meta.url);
     const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
 
-    // sets required attributes, creates necessary Observables, and merge and subscribes to the observables
-    const generateGame = (csv_contents: string): Subscription => {
+    // sets required attributes, creates necessary Observables for the game
+    // and merge and subscribes to the observables
+    const generateGame = (csv_contents: string): undefined => {
         showGame();
 
         svg.setAttribute("height", `${ViewportConstants.CANVAS_HEIGHT}`);
         svg.setAttribute("width", `${ViewportConstants.CANVAS_WIDTH}`);
 
-        const resetState = (prev: State): State => ({
-            ...prev,
-            music: null,
-			outofboundmusic: []
-        });
-
         const control$ = createKeyboardStream(),
             { playingInstrument, noteStream$ } = createNoteStream(csv_contents),
             tick$ = createTickStream();
 
-        const source$ = merge(tick$, control$, noteStream$)
+        const source$ = merge(
+            tick$,
+            control$,
+            noteStream$,
+            retryButton(),
+            backButton(),
+        )
             .pipe(
                 scan(
                     (prevState: State, modifier: (prev: State) => State) => ({
@@ -295,93 +289,18 @@ function renderGame(
                     initialState(playingInstrument),
                 ),
             )
-            .subscribe((s: State) => {
-                renderGameFrame(s, sampleLibary, source$);
-            });
-        return source$;
-    };
-
-    type gameSourceData = Readonly<{
-        sourceStream: Subscription;
-
-        leave: boolean;
-        retry: boolean;
-
-        prevSourceStream: Subscription | null;
-    }>;
-
-    // initial Observables and statuses
-    const initialSources = (csv_contents: string): gameSourceData => ({
-        sourceStream: generateGame(csv_contents),
-        leave: false,
-        retry: false,
-        prevSourceStream: null,
-    });
-
-    // creates a Observable that serves as a 'back button' listener.
-    const backButton = (): Observable<
-        (prev: gameSourceData) => gameSourceData
-    > =>
-        merge(
-            fromKeyPress("Escape"),
-            createClickStream(
-                document.getElementById("backButton") as HTMLElement,
-            ),
-        ).pipe(
-            map(
-                () =>
-                    (prev: gameSourceData): gameSourceData => ({
-                        ...prev,
-                        leave: true,
-                        retry: false,
-                    }),
-            ),
-        );
-
-    // creates a Observable that serves as a 'retry button' listener
-    const retryButton = (
-        csv_contents: string,
-    ): Observable<(prev: gameSourceData) => gameSourceData> =>
-        merge(
-            fromKeyPress("KeyR"),
-            createClickStream(
-                document.getElementById("retryButton") as HTMLElement,
-            ),
-        ).pipe(
-            map(
-                // this creates a new source stream, which replaces the old
-                // source stream. The old source stream is then passed into
-                // subscribe to be unsubscribed from
-                () =>
-                    (prev: gameSourceData): gameSourceData => ({
-                        ...prev,
-                        sourceStream: generateGame(csv_contents),
-                        prevSourceStream: prev.sourceStream,
-                        leave: false,
-                        retry: true,
-                    }),
-            ),
-        );
-
-    // merges the two 'retry' and 'back' streams into one stream, and subscribes to it
-    const linkButtons = (csv_contents: string): undefined => {
-        const stream = merge(retryButton(csv_contents), backButton())
-            .pipe(
-                scan(
-                    (prev, modifier) => modifier(prev),
-                    initialSources(csv_contents),
-                ),
-            )
-            .subscribe((data) => {
-                if (data.leave) {
-                    // cleanup
-                    data.sourceStream.unsubscribe();
-                    stream.unsubscribe();
-                    showSongSelection();
-                } else if (data.retry && data.prevSourceStream) {
-                    // unsubscribe from the previous stream
-                    data.prevSourceStream.unsubscribe();
-                }
+            .subscribe({
+                next: (s: State) => {
+                    if (s.data.leave) {
+                        source$.unsubscribe();
+                        showSongSelection();
+                    } else if (s.data.retry) {
+                        source$.unsubscribe();
+                        renderGame(songName, sampleLibary);
+                    } else {
+                        renderGameFrame(s, sampleLibary);
+                    }
+                },
             });
     };
 
@@ -390,7 +309,7 @@ function renderGame(
             if (!response.ok) throw response.statusText;
             return response.text();
         })
-        .then((text) => linkButtons(text))
+        .then((text) => generateGame(text))
         .catch((error) => {
             console.error("Error fetching the CSV file:", error),
                 showSongSelection();
@@ -413,21 +332,22 @@ function renderSongSelection(sample: SampleLibraryType): undefined {
         (a) => (b) => a.toLowerCase() >= b.toLowerCase(),
     );
 
-    const datas = sortedSongList.map((songName): Observable<string> => {
+	const divs = sortedSongList.map((songName: string) => { 
         const menuDiv = document.createElement("div");
         menuDiv.setAttribute("class", "menu_item");
         menuDiv.innerText = songName;
-        menu.appendChild(menuDiv);
+		menu.appendChild(menuDiv)
+		return menuDiv
+	})
 
-        const menu$ = fromEvent(menuDiv, "click").pipe(map(() => songName));
+    const datas = divs.map((div: HTMLElement): Observable<string> => fromEvent(div, "click").pipe(map(() => div.innerText)))
 
-        return menu$;
-    });
-
-    const listener$ = merge(...datas).subscribe((songName: string): undefined => {
-        showLoading();
-        renderGame(songName, sample);
-    });
+    merge(...datas).subscribe(
+        (songName: string): undefined => {
+            showLoading();
+            renderGame(songName, sample);
+        },
+    );
 }
 
 // hides every other element, shows the main menu (song selection) screen
