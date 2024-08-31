@@ -23,6 +23,7 @@ import {
     Line,
     lineDown,
     lineFront,
+    lineFrontRange,
     lineNames,
     lineRemoveFront,
     lineReplaceNote,
@@ -74,7 +75,7 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
                 const lineAssociated = lineUp(prev.gameFrame[key]);
 
                 // reads the first element from the line
-                const firstElement = lineFront(lineAssociated);
+                const firstElement = lineFrontRange(lineAssociated, ZonesConstants.GOOD_ZONE, ZonesConstants.END_GOOD_ZONE);
 
                 // if the first element isnt a stream, and isnt be clicked on
                 // we do nothing
@@ -149,7 +150,7 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
             (key: lineNames) =>
             (prev: State): State => {
                 const lineAssociated = lineDown(prev.gameFrame[key]);
-                const firstElement = lineFront(lineAssociated);
+                const firstElement = lineFrontRange(lineAssociated, ZonesConstants.GOOD_ZONE, ZonesConstants.END_GOOD_ZONE);
 
                 if (!firstElement || firstElement.clickedBefore)
                     return {

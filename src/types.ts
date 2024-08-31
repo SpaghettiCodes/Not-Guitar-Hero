@@ -189,6 +189,9 @@ const lineUp = (line: Line): Line => ({
 // accesses the first element in the line
 const lineFront = (line: Line): Note | undefined => line.line.at(0);
 
+// gets the first element which is within the range of {lowerBound} and {upperBound}
+const lineFrontRange = (line: Line, lowerBound: number, upperBound: number): Note | undefined => line.line.find(x => x.y >= lowerBound && x.y <= upperBound);
+
 // accesses the last element in the line
 const lineBack = (line: Line): Note | undefined => line.line.at(-1);
 
@@ -504,6 +507,7 @@ export {
     lineDown,
     lineUp,
     lineFront,
+	lineFrontRange,
     lineBack,
     lineReplaceNote,
     lineRemoveFront,

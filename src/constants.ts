@@ -42,6 +42,7 @@ const SONG_LIST = [
     "~test-drag2",
     "~test-drag3",
     "~test-drag4",
+	'~test-dotDrag',
     "sus",
     "sageJihen",
     "galaticMermaidSupport",
