@@ -12,6 +12,8 @@ import {
     mergeWith,
     Observable,
     of,
+    reduce,
+    switchMap,
     timer,
 } from "rxjs";
 import {
@@ -75,7 +77,11 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
                 const lineAssociated = lineUp(prev.gameFrame[key]);
 
                 // reads the first element from the line
-                const firstElement = lineFrontRange(lineAssociated, ZonesConstants.GOOD_ZONE, ZonesConstants.END_GOOD_ZONE);
+                const firstElement = lineFrontRange(
+                    lineAssociated,
+                    ZonesConstants.GOOD_ZONE,
+                    ZonesConstants.END_GOOD_ZONE,
+                );
 
                 // if the first element isnt a stream, and isnt be clicked on
                 // we do nothing
@@ -150,7 +156,11 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
             (key: lineNames) =>
             (prev: State): State => {
                 const lineAssociated = lineDown(prev.gameFrame[key]);
-                const firstElement = lineFrontRange(lineAssociated, ZonesConstants.GOOD_ZONE, ZonesConstants.END_GOOD_ZONE);
+                const firstElement = lineFrontRange(
+                    lineAssociated,
+                    ZonesConstants.GOOD_ZONE,
+                    ZonesConstants.END_GOOD_ZONE,
+                );
 
                 if (!firstElement || firstElement.clickedBefore)
                     return {
@@ -245,26 +255,32 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
             const keyRelease$ = fromKeyRelease(keyCode).pipe(
                 map(
                     () =>
-                        (state: State): State => state.gameEnd ? state : {
-                            ...onkeyRelease(state),
-                            keyPressed: removeElement(
-                                state.keyPressed,
-                                keyCode,
-                            ),
-                        },
+                        (state: State): State =>
+                            state.gameEnd
+                                ? state
+                                : {
+                                      ...onkeyRelease(state),
+                                      keyPressed: removeElement(
+                                          state.keyPressed,
+                                          keyCode,
+                                      ),
+                                  },
                 ),
             );
 
             const keyPress$ = fromKeyPress(keyCode).pipe(
                 map(
                     () =>
-                        (state: State): State => state.gameEnd ? state : {
-                            ...onkeyPress(state),
-                            keyPressed: insertElement(
-                                state.keyPressed,
-                                keyCode,
-                            ),
-                        },
+                        (state: State): State =>
+                            state.gameEnd
+                                ? state
+                                : {
+                                      ...onkeyPress(state),
+                                      keyPressed: insertElement(
+                                          state.keyPressed,
+                                          keyCode,
+                                      ),
+                                  },
                 ),
             );
 
@@ -421,8 +437,8 @@ const createTickStream = (): Observable<(state: State) => State> => {
             const missedCount = missedNotesCount(prev.gameFrame);
             return {
                 ...prev,
-				// if the last note is played, and the game frame is completely empty
-				// we can safely end the game
+                // if the last note is played, and the game frame is completely empty
+                // we can safely end the game
                 gameEnd:
                     prev.data.lastNodePlayed && gameFrameEmpty(prev.gameFrame),
                 gameFrame: tickGameFrame(prev.gameFrame),
@@ -486,6 +502,28 @@ const retryButton = (): Observable<(state: State) => State> =>
         ),
     );
 
+// observable to grab the csv content
+const grabCSVData = <T, U>(
+    url: string,
+    successFunction: (csvContents: string) => T,
+    errorFunction: (error: string) => U,
+): Observable<() => T | U> =>
+    from(fetch(url)).pipe(
+        switchMap((response) =>
+            response.ok
+                ? from(response.text()).pipe(
+                      reduce((acc, text) => acc + text, ""),
+                      // this returns a function which has side effect
+                      // which would be ran in subscribe
+                      map((string) => () => successFunction(string)),
+                  )
+                : of(response.statusText).pipe(
+                      // this also
+                      map((err) => () => errorFunction(err)),
+                  ),
+        ),
+    );
+
 export {
     createKeyboardStream,
     createNoteStream,
@@ -494,4 +532,5 @@ export {
     fromKeyPress,
     backButton,
     retryButton,
+    grabCSVData,
 };

@@ -190,7 +190,12 @@ const lineUp = (line: Line): Line => ({
 const lineFront = (line: Line): Note | undefined => line.line.at(0);
 
 // gets the first element which is within the range of {lowerBound} and {upperBound}
-const lineFrontRange = (line: Line, lowerBound: number, upperBound: number): Note | undefined => line.line.find(x => x.y >= lowerBound && x.y <= upperBound);
+const lineFrontRange = (
+    line: Line,
+    lowerBound: number,
+    upperBound: number,
+): Note | undefined =>
+    line.line.find((x) => x.y >= lowerBound && x.y <= upperBound);
 
 // accesses the last element in the line
 const lineBack = (line: Line): Note | undefined => line.line.at(-1);
@@ -387,7 +392,7 @@ interface LazySequence<T> {
  * A random number generator which provides two pure functions
  * `hash` and `scaleToRange`.  Call `hash` repeatedly to generate the
  * sequence of hashes.
- * 
+ *
  * RNG class is sourced from 2102 Applied Class Exercise Week 4
  */
 abstract class RNG {
@@ -507,7 +512,7 @@ export {
     lineDown,
     lineUp,
     lineFront,
-	lineFrontRange,
+    lineFrontRange,
     lineBack,
     lineReplaceNote,
     lineRemoveFront,

@@ -1,6 +1,17 @@
 /** Rendering (side effects) */
 
-import { from, fromEvent, map, merge, Observable, of, reduce, scan, Subscription, switchMap } from "rxjs";
+import {
+    from,
+    fromEvent,
+    map,
+    merge,
+    Observable,
+    of,
+    reduce,
+    scan,
+    Subscription,
+    switchMap,
+} from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -22,6 +33,7 @@ import {
     createKeyboardStream,
     createNoteStream,
     createTickStream,
+    grabCSVData,
     retryButton,
 } from "./observable";
 import { calculateAccuracy, sorted } from "./util";
@@ -234,10 +246,7 @@ function showEndScreen(data: GameData) {
 
 // renders the game frame based on data in state
 // sourceSubscription is needed to properly unsubscribe from the Subsription when the game ends
-function renderGameFrame(
-    s: State,
-    sampleLibary: SampleLibraryType
-) {
+function renderGameFrame(s: State, sampleLibary: SampleLibraryType) {
     if (s.gameEnd) {
         showEndScreen(s.data);
     } else {
@@ -304,34 +313,15 @@ function renderGame(
             });
     };
 
-	// observable to grab the csv content
-	// so sorry that this isnt in observable.ts, this was last minute work
-	from(fetch(`${baseUrl}/assets/${songName}.csv`)).pipe(
-		switchMap(
-			(response) => response.ok ? 
-			from(response.text())
-			.pipe(
-				reduce((acc, text) => acc + text, ""),
-				// this returns a function which has side effect
-				// which would be ran in subscribe
-				map((string) => () => generateGame(string))
-			) : 
-			of(response.statusText)
-			.pipe(
-				// this also
-				map((err) => () => {
-					console.error('Error fetching CSV File')
-					showSongSelection()
-				})
-			)
-		),
-	).subscribe({
-		next: (runner) => runner(),
-		error: () => {
-			console.error("Error fetching the CSV file"),
-			showSongSelection();
-		}
-	})
+    grabCSVData(`${baseUrl}/assets/${songName}.csv`, generateGame, (err: string) => {
+        console.error(`Error fetching CSV File: ${err}`);
+        showSongSelection();
+    }).subscribe({
+        next: (runner) => runner(),
+        error: () => {
+            console.error("Error fetching the CSV file"), showSongSelection();
+        },
+    });
 }
 
 // hides other elements, display the game frame
@@ -350,22 +340,23 @@ function renderSongSelection(sample: SampleLibraryType): undefined {
         (a) => (b) => a.toLowerCase() >= b.toLowerCase(),
     );
 
-	const divs = sortedSongList.map((songName: string) => { 
+    const divs = sortedSongList.map((songName: string) => {
         const menuDiv = document.createElement("div");
         menuDiv.setAttribute("class", "menu_item");
         menuDiv.innerText = songName;
-		menu.appendChild(menuDiv)
-		return menuDiv
-	})
+        menu.appendChild(menuDiv);
+        return menuDiv;
+    });
 
-    const datas = divs.map((div: HTMLElement): Observable<string> => fromEvent(div, "click").pipe(map(() => div.innerText)))
-
-    merge(...datas).subscribe(
-        (songName: string): undefined => {
-            showLoading();
-            renderGame(songName, sample);
-        },
+    const datas = divs.map(
+        (div: HTMLElement): Observable<string> =>
+            fromEvent(div, "click").pipe(map(() => div.innerText)),
     );
+
+    merge(...datas).subscribe((songName: string): undefined => {
+        showLoading();
+        renderGame(songName, sample);
+    });
 }
 
 // hides every other element, shows the main menu (song selection) screen
