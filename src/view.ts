@@ -267,7 +267,7 @@ function renderGame(
 
     // sets required attributes, creates necessary Observables for the game
     // and merge and subscribes to the observables
-    const generateGame = (csv_contents: string): undefined => {
+    const generateGame = (csv_contents: ReadonlyArray<ReadonlyArray<string>>): undefined => {
         showGame();
 
         svg.setAttribute("height", `${ViewportConstants.CANVAS_HEIGHT}`);

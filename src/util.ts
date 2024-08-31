@@ -4,10 +4,10 @@ function removeElement<T>(
     element: T,
 ): ReadonlyArray<T> {
     const indexOfElement = array.indexOf(element);
-    if (indexOfElement < 0) return array;
+	if (indexOfElement < 0) return array;
     return [
         ...array.slice(0, indexOfElement),
-        ...array.slice(indexOfElement + 1, array.length),
+        ...array.slice(indexOfElement + 1),
     ];
 }
 

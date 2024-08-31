@@ -74,6 +74,7 @@ const SONG_LIST = [
     "amongDrip",
     "duelInTheMist",
     "~test-dotFast",
+    "~test-longDrag",
 ];
 
 const ScoreConstant = {

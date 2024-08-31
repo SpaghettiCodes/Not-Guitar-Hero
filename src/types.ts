@@ -8,7 +8,6 @@ import {
     ViewportConstants,
 } from "./constants";
 import { insertElement, removeElement } from "./util";
-import { Subscription } from "rxjs";
 
 /** User input */
 

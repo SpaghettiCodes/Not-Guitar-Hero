@@ -314,12 +314,12 @@ const createKeyboardStream = (): Observable<(state: State) => State> => {
 // 1. the note stream
 // 2. the instrument we are playing as (for random noise when we miss)
 const createNoteStream = (
-    csv_contents: string,
+    csv_contents: ReadonlyArray<ReadonlyArray<string>>,
 ): Readonly<{
     playingInstrument: string | undefined;
     noteStream$: Observable<(state: State) => State>;
 }> => {
-    const processedCSV = processCSV(csv_contents)
+    const processedCSV = csv_contents
         .filter((data) => data.length === 6)
         .map(
             (data): Music =>
@@ -500,7 +500,7 @@ const retryButton = (): Observable<(state: State) => State> =>
 // observable to grab the csv content
 const grabCSVData = <T, U>(
     url: string,
-    successFunction: (csvContents: string) => T,
+    successFunction: (csvContents: ReadonlyArray<ReadonlyArray<string>>) => T,
     errorFunction: (error: string) => U,
 ): Observable<() => T | U> =>
     from(fetch(url)).pipe(
@@ -509,6 +509,8 @@ const grabCSVData = <T, U>(
                 ? from(response.text()).pipe(
 					  // combine all the text into one string
                       reduce((acc, text) => acc + text, ""),
+					  // processes the string
+					  map(processCSV),
                       // this returns a function which has side effect
                       // which would be ran in subscribe
                       map((string) => () => successFunction(string)),
