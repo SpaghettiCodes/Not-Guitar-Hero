@@ -7,7 +7,7 @@ import {
     TimeConstant,
     ViewportConstants,
 } from "./constants";
-import { insertElement } from "./util";
+import { insertElement, removeElement } from "./util";
 import { Subscription } from "rxjs";
 
 /** User input */
@@ -211,10 +211,10 @@ const lineReplaceNote = (line: Line, newNoTe: Note, target: Note): Line => {
     ]);
 };
 
-// returns a new Line object with its first note removed
-const lineRemoveFront = (line: Line): Line => {
-    return updateLine(line, line.line.slice(1));
-};
+// returns a new Line object with the specific note removed
+const lineRemoveSpecific = (line: Line, noteTarget: Note): Line => {
+	return updateLine(line, removeElement(line.line, noteTarget));
+}
 
 // ticks the line
 // 1. removes the first element on the line if it is out of render threshold
@@ -433,7 +433,7 @@ type RNGFields = Readonly<{
 }>;
 
 // calls next for both pitch and duration rng sequence
-const nextNumber = (rngfield: RNGFields): RNGFields => ({
+const nextRNGValue = (rngfield: RNGFields): RNGFields => ({
     pitch: rngfield.pitch.next(),
     duration: rngfield.duration.next(),
 });
@@ -451,7 +451,7 @@ type State = Readonly<{
     data: GameData;
 
     // a function to play music, if there is nothing to be played, it is set to null
-    // this function is called in subscribe as it is unpure
+    // this function is called in subscribe as it is impure
     music: ((samples: SampleLibraryType) => void) | null;
 
     outofboundmusic: ReadonlyArray<(sample: SampleLibraryType) => void>;
@@ -515,7 +515,7 @@ export {
     lineFrontRange,
     lineBack,
     lineReplaceNote,
-    lineRemoveFront,
+	lineRemoveSpecific,
     tickLine,
     type GameFrame,
     newGameFrame,
@@ -525,7 +525,7 @@ export {
     type GameData,
     newGameData,
     type State,
-    nextNumber,
+    nextRNGValue,
     initialState,
     resetState,
     type LazySequence,

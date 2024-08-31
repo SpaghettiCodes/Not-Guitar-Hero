@@ -1,16 +1,11 @@
 /** Rendering (side effects) */
 
 import {
-    from,
     fromEvent,
     map,
     merge,
     Observable,
-    of,
-    reduce,
     scan,
-    Subscription,
-    switchMap,
 } from "rxjs";
 import {
     BarConstants,
@@ -22,7 +17,7 @@ import {
     GameData,
     initialState,
     Key,
-    nextNumber,
+    nextRNGValue,
     Note,
     resetState,
     SampleLibraryType,
@@ -293,7 +288,7 @@ function renderGame(
                 scan(
                     (prevState: State, modifier: (prev: State) => State) => ({
                         ...modifier(resetState(prevState)),
-                        rng: nextNumber(prevState.rng),
+                        rng: nextRNGValue(prevState.rng),
                     }),
                     initialState(playingInstrument),
                 ),
@@ -313,10 +308,14 @@ function renderGame(
             });
     };
 
-    grabCSVData(`${baseUrl}/assets/${songName}.csv`, generateGame, (err: string) => {
-        console.error(`Error fetching CSV File: ${err}`);
-        showSongSelection();
-    }).subscribe({
+    grabCSVData(
+        `${baseUrl}/assets/${songName}.csv`,
+        generateGame,
+        (err: string) => {
+            console.error(`Error fetching CSV File: ${err}`);
+            showSongSelection();
+        },
+    ).subscribe({
         next: (runner) => runner(),
         error: () => {
             console.error("Error fetching the CSV file"), showSongSelection();
