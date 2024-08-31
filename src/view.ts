@@ -1,6 +1,6 @@
 /** Rendering (side effects) */
 
-import { fromEvent, map, merge, Observable, scan, Subscription } from "rxjs";
+import { from, fromEvent, map, merge, Observable, of, reduce, scan, Subscription, switchMap } from "rxjs";
 import {
     BarConstants,
     NoteConstants,
@@ -304,16 +304,34 @@ function renderGame(
             });
     };
 
-    fetch(`${baseUrl}/assets/${songName}.csv`)
-        .then((response) => {
-            if (!response.ok) throw response.statusText;
-            return response.text();
-        })
-        .then((text) => generateGame(text))
-        .catch((error) => {
-            console.error("Error fetching the CSV file:", error),
-                showSongSelection();
-        });
+	// observable to grab the csv content
+	// so sorry that this isnt in observable.ts, this was last minute work
+	from(fetch(`${baseUrl}/assets/${songName}.csv`)).pipe(
+		switchMap(
+			(response) => response.ok ? 
+			from(response.text())
+			.pipe(
+				reduce((acc, text) => acc + text, ""),
+				// this returns a function which has side effect
+				// which would be ran in subscribe
+				map((string) => () => generateGame(string))
+			) : 
+			of(response.statusText)
+			.pipe(
+				// this also
+				map((err) => () => {
+					console.error('Error fetching CSV File')
+					showSongSelection()
+				})
+			)
+		),
+	).subscribe({
+		next: (runner) => runner(),
+		error: () => {
+			console.error("Error fetching the CSV file"),
+			showSongSelection();
+		}
+	})
 }
 
 // hides other elements, display the game frame
